@@ -41,7 +41,7 @@ export async function inviteMember(formData: FormData) {
       `Hallo,`,
       ``,
       `${user.name ?? user.email} lädt dich ein, dem Team "${org.name}" beizutreten.`,
-      `Nach dem Beitritt kannst du deinen Google Kalender verbinden und Termine annehmen.`,
+      `Nach dem Beitritt kannst du deinen Kalender (Google oder Outlook) verbinden und Termine annehmen.`,
       ``,
       `Einladung annehmen: ${appUrl()}/invite/${invitation.token}`,
       ``,

@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { auth, signIn } from "@/auth";
+import { auth } from "@/auth";
+import { SignInButtons } from "@/components/SignInButtons";
 import { db } from "@/lib/db";
 import { acceptInvitation, CURRENT_ORG_COOKIE } from "@/lib/org";
 
@@ -22,19 +23,12 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
             einer neuen.
           </p>
         ) : !session?.user?.id ? (
-          <form
-            action={async () => {
-              "use server";
-              await signIn("google", { redirectTo: `/invite/${token}` });
-            }}
-            className="space-y-3"
-          >
+          <div className="space-y-3">
             <p className="text-sm text-slate-600">
-              Melde dich mit deinem Google-Konto an. Dabei wird dein Kalender verbunden, damit Kunden nur freie Zeiten
-              sehen.
+              Melde dich an. Dabei wird dein Kalender verbunden, damit Kunden nur freie Zeiten sehen.
             </p>
-            <button className="btn w-full">Mit Google anmelden und beitreten</button>
-          </form>
+            <SignInButtons redirectTo={`/invite/${token}`} suffix="anmelden und beitreten" />
+          </div>
         ) : (
           <form
             action={async () => {

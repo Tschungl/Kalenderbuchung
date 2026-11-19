@@ -1,8 +1,13 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
+import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { db } from "@/lib/db";
 import { bootstrapNewUser } from "@/lib/org";
+import { MS_PROVIDER, MS_SCOPES } from "@/lib/microsoft";
+
+/** Outlook-Login nur anbieten, wenn eine Microsoft-App eingerichtet ist. */
+export const microsoftEnabled = !!process.env.AUTH_MICROSOFT_ENTRA_ID_ID;
 
 /** Google-Berechtigungen: Login + Kalender lesen (Belegt-Zeiten) + Termine anlegen. */
 export const GOOGLE_SCOPES = [
@@ -28,6 +33,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         },
       },
     }),
+    ...(microsoftEnabled
+      ? [
+          MicrosoftEntraID({
+            // Profilbild nicht als Base64 in der Datenbank speichern
+            profilePhotoSize: 48,
+            authorization: { params: { scope: MS_SCOPES, prompt: "select_account" } },
+          }),
+        ]
+      : []),
   ],
   pages: { signIn: "/login" },
   events: {
@@ -36,9 +50,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     async signIn({ account }) {
       // Bei erneutem Login neue Tokens speichern (Google schickt Refresh-Token nur mit prompt=consent)
-      if (account?.provider === "google" && account.refresh_token) {
+      if ((account?.provider === "google" || account?.provider === MS_PROVIDER) && account.refresh_token) {
         await db.account.updateMany({
-          where: { provider: "google", providerAccountId: account.providerAccountId },
+          where: { provider: account.provider, providerAccountId: account.providerAccountId },
           data: {
             access_token: account.access_token,
             refresh_token: account.refresh_token,

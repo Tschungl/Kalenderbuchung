@@ -17,7 +17,7 @@ export const GET = withApiKey<Ctx>(async (_req, org, { params }) => {
   return NextResponse.json({ data: bookingPayload(booking) });
 });
 
-/** DELETE /api/v1/bookings/:id  ->  absagen (Google-Event wird mitgelöscht) */
+/** DELETE /api/v1/bookings/:id  ->  absagen (Kalender-Event wird mitgelöscht) */
 export const DELETE = withApiKey<Ctx>(async (_req, org, { params }) => {
   const booking = await find(org.id, (await params).id);
   if (!booking) return NextResponse.json({ error: "Buchung nicht gefunden" }, { status: 404 });

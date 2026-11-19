@@ -31,6 +31,10 @@ model Organization {
   pageTheme    String       @default("light")
   // Minuten vor Terminbeginn, zu denen Erinnerungen verschickt werden
   reminderOffsetsMin Int[]  @default([1440, 60])
+  // Eigene Domain, z.B. "termine.firma.de" (erst nach DNS-Prüfung aktiv)
+  customDomain     String?  @unique
+  domainToken      String   @default(dbgenerated("md5(random()::text)"))
+  domainVerifiedAt DateTime?
   createdAt    DateTime     @default(now())
   memberships  Membership[]
   eventTypes   EventType[]
@@ -213,8 +217,13 @@ model Booking {
   startTime      DateTime
   endTime        DateTime
   status         BookingStatus @default(CONFIRMED)
+  // Event-ID im Kalender des Gastgebers (Google oder Microsoft)
   googleEventId  String?
+  // "google" | "microsoft"
+  calendarProvider String     @default("google")
   meetingUrl     String?
+  // Gesetzt, wenn diese Buchung eine verschobene ersetzt
+  rescheduledFromId String?
   // Geheimer Token für Absage/Verschiebung per Link
   manageToken    String        @unique @default(cuid())
   notes          String?       @db.Text

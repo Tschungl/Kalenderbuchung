@@ -13,7 +13,7 @@ export default async function TeamPage() {
       include: {
         user: {
           include: {
-            accounts: { where: { provider: "google" }, select: { refresh_token: true, scope: true } },
+            accounts: { select: { provider: true, refresh_token: true, scope: true } },
             hostOf: { where: { eventType: { organizationId: org.id } }, select: { id: true } },
           },
         },
@@ -52,8 +52,10 @@ export default async function TeamPage() {
 
       <div className="card divide-y divide-slate-100 p-0">
         {members.map((m) => {
-          const google = m.user.accounts[0];
-          const calendarOk = !!google?.refresh_token && !!google.scope?.includes("calendar");
+          const cal = m.user.accounts.find(
+            (a) => !!a.refresh_token && (a.provider === "google" ? !!a.scope?.includes("calendar") : !!a.scope?.toLowerCase().includes("calendars")),
+          );
+          const calendarOk = !!cal;
           return (
             <div key={m.id} className="flex flex-wrap items-center justify-between gap-4 px-6 py-4">
               <div>
@@ -61,7 +63,7 @@ export default async function TeamPage() {
                 <p className="text-sm text-slate-500">
                   {m.user.email} · {m.user.hostOf.length} Meeting-Typen ·{" "}
                   {calendarOk ? (
-                    <span className="text-green-700">Kalender verbunden</span>
+                    <span className="text-green-700">{cal.provider === "google" ? "Google Kalender" : "Outlook"} verbunden</span>
                   ) : (
                     <span className="text-amber-700">Kalender nicht verbunden (neu anmelden)</span>
                   )}

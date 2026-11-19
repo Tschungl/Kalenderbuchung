@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { canManage, requireMember } from "@/lib/session";
 import { BrandingEditor } from "@/components/BrandingEditor";
+import { DomainSettings } from "@/components/DomainSettings";
 import { createOrganization, updateOrganization } from "../team/actions";
 import { updateBranding } from "./actions";
 
@@ -56,6 +57,13 @@ export default async function SettingsPage() {
         </fieldset>
         {!manager && <p className="text-sm text-slate-500">Nur Inhaber und Admins können das ändern.</p>}
       </form>
+
+      <DomainSettings
+        customDomain={org.customDomain}
+        domainToken={org.domainToken}
+        domainVerifiedAt={org.domainVerifiedAt}
+        manager={manager}
+      />
 
       <form action={createOrganization} className="card flex flex-wrap items-end gap-3">
         <div className="min-w-64 flex-1">

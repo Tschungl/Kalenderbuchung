@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Kalenderbuchung",
-  description: "Termine buchen, direkt aus dem Google Kalender",
+  description: "Termine buchen, direkt aus dem eigenen Kalender (Google oder Outlook)",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

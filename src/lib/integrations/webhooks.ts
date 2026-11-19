@@ -1,12 +1,13 @@
 import { createHmac, randomBytes } from "crypto";
 import { db } from "@/lib/db";
 
-export const WEBHOOK_EVENTS = ["booking.created", "booking.cancelled", "negotiation.approval_requested"] as const;
+export const WEBHOOK_EVENTS = ["booking.created", "booking.cancelled", "booking.rescheduled", "negotiation.approval_requested"] as const;
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
 
 export const WEBHOOK_EVENT_LABEL: Record<WebhookEvent, string> = {
   "booking.created": "Termin gebucht",
   "booking.cancelled": "Termin abgesagt",
+  "booking.rescheduled": "Termin verschoben",
   "negotiation.approval_requested": "Freigabe für Ausnahmezeit angefragt",
 };
 

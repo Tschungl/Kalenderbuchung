@@ -19,7 +19,7 @@ export default async function AvailabilityPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Verfügbarkeit</h1>
       <p className="text-sm text-slate-600">
-        Innerhalb dieser Zeiten werden Termine angeboten. Belegte Zeiten aus deinem Google Kalender werden automatisch
+        Innerhalb dieser Zeiten werden Termine angeboten. Belegte Zeiten aus deinem Kalender (Google oder Outlook) werden automatisch
         ausgespart.
       </p>
       <form action={saveSchedule} className="card space-y-4">

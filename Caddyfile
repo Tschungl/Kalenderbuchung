@@ -1,0 +1,24 @@
+# Reverse Proxy mit automatischem HTTPS (Let's Encrypt), auch für Kunden-Domains.
+# Start: docker compose --profile proxy up -d
+{
+	email {$ACME_EMAIL}
+	on_demand_tls {
+		# Zertifikate nur für die App-Domain und geprüfte Kunden-Domains
+		ask http://app:3000/api/domains/check
+	}
+}
+
+# Hauptadresse der App
+{$APP_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:3000
+}
+
+# Alle anderen Domains (eigene Domains der Organisationen)
+https:// {
+	tls {
+		on_demand
+	}
+	encode zstd gzip
+	reverse_proxy app:3000
+}
