@@ -23,6 +23,7 @@ Mandantenfähig: Jede Firma ist eine eigene Organisation mit eigenen Mitgliedern
 - Passt keine angebotene Zeit, schreibt der Kunde frei, wann er kann
 - Der Assistent prüft Zeiten und schlägt sie vor, bucht direkt oder fragt beim Gastgeber nach. Er handelt nur über Werkzeuge, die serverseitig gegen die Regeln prüfen.
 - Pro Meeting-Typ einstellbar: erweiterte Zeiten, Wochenende, kürzerer Vorlauf, direkt buchen oder Freigabe, Hinweise
+- **Vorabfragen:** Pro Meeting-Typ legt der Gastgeber Fragen fest (Pflicht oder optional, z.B. „Wer aus der IT nimmt teil?“). Dann läuft jede Buchung über den Chat. Der Assistent klärt die Fragen, lädt genannte Personen mit ein und bucht erst, wenn alle Pflichtfragen beantwortet sind (prüft der Server). Die Antworten stehen im Kalender-Event, in der Buchungsübersicht und im Webhook.
 
 **Gestaltung und Ausbau**
 - Gestaltung der Buchungsseite mit Live-Vorschau: Farbe, Logo, Texte, Schrift, Buttons, Hintergrund (hell, getönt, dunkel)
@@ -108,7 +109,7 @@ Nach „Prüfen“ ist die Domain aktiv. Caddy holt das Zertifikat beim ersten A
 
 ## KI-Terminverhandlung
 
-`ANTHROPIC_API_KEY` setzen (Schlüssel von [console.anthropic.com](https://console.anthropic.com/)). Ohne Schlüssel ist die Funktion ausgeblendet. Optional wählt `NEGOTIATION_MODEL` ein anderes Modell (Standard: `claude-opus-5-5`). Aktiviert wird sie pro Meeting-Typ.
+`ANTHROPIC_API_KEY` setzen (Schlüssel von [console.anthropic.com](https://console.anthropic.com/)). Ohne Schlüssel sind Verhandlung und Vorabfragen ausgeblendet, gebucht wird dann normal. Optional wählt `NEGOTIATION_MODEL` ein anderes Modell (Standard: `claude-opus-5-5`). Aktiviert wird sie pro Meeting-Typ.
 
 ## E-Mail
 

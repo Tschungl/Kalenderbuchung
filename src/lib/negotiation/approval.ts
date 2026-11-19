@@ -1,3 +1,4 @@
+import { intakeActive, intakeSummary, parseIntake, type IntakeAnswer, type Participant } from "./intake";
 import { db } from "@/lib/db";
 import { appUrl, BookingError, createBooking } from "@/lib/booking";
 import { formatDateTime, sendMail } from "@/lib/mail";
@@ -37,10 +38,19 @@ export async function decideApproval(approvalToken: string, approve: boolean) {
           name: neg.customerName,
           email: neg.customerEmail,
           timeZone: neg.timeZone,
-          guests: [],
-          notes: `Per KI-Terminverhandlung vereinbart, vom Gastgeber freigegeben.${neg.pendingReason ? ` Begründung: ${neg.pendingReason}` : ""}`,
+          guests: neg.participants as unknown as Participant[],
+          notes: [
+            `Per KI-Assistent vereinbart, vom Gastgeber freigegeben.${neg.pendingReason ? ` Begründung: ${neg.pendingReason}` : ""}`,
+            intakeSummary(neg.intakeAnswers as unknown as IntakeAnswer[], neg.participants as unknown as Participant[], parseIntake(et.intake)),
+          ]
+            .filter(Boolean)
+            .join("\n\n"),
         },
-        { rules },
+        {
+          rules,
+          maxGuests: Math.max(et.maxGuests, 3),
+          intakeAnswers: intakeActive(parseIntake(et.intake)) ? (neg.intakeAnswers as unknown as IntakeAnswer[]) : undefined,
+        },
       );
       await db.negotiation.update({
         where: { id: neg.id },

@@ -50,6 +50,7 @@ type BookingForPayload = {
   hostId: string;
   eventTypeId: string;
   attendees?: { name: string; email: string; isGuest: boolean }[];
+  intakeAnswers?: unknown;
 };
 
 export function bookingPayload(b: BookingForPayload) {
@@ -62,6 +63,7 @@ export function bookingPayload(b: BookingForPayload) {
     status: b.status,
     meetingUrl: b.meetingUrl,
     notes: b.notes,
+    intakeAnswers: Array.isArray(b.intakeAnswers) ? b.intakeAnswers : undefined,
     attendees: (b.attendees ?? []).map((a) => ({ name: a.name, email: a.email, isGuest: a.isGuest })),
   };
 }

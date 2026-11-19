@@ -1,5 +1,7 @@
 import type { EventType } from "@prisma/client";
 import { parseRules } from "@/lib/negotiation/rules";
+import { parseIntake } from "@/lib/negotiation/intake";
+import { IntakeEditor } from "./IntakeEditor";
 
 type Member = { id: string; name: string | null; email: string | null };
 
@@ -41,6 +43,7 @@ export function EventTypeForm({
 }) {
   const et = eventType;
   const rules = parseRules(et?.negotiation);
+  const intake = parseIntake(et?.intake);
   return (
     <form action={action} className="card space-y-6">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -126,6 +129,20 @@ export function EventTypeForm({
             );
           })}
         </div>
+      </fieldset>
+      <fieldset className="space-y-4 rounded-lg border border-slate-200 p-4">
+        <legend className="px-1 text-sm font-semibold">KI-Vorabfragen</legend>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="intake_enabled" defaultChecked={intake.enabled} />
+          Vor jeder Buchung klärt der Assistent im Chat diese Fragen (Pflicht für Buchende)
+        </label>
+        <IntakeEditor initial={intake.questions} />
+        <div>
+          <label className="label" htmlFor="intake_intro">Einleitung über dem Chat (optional)</label>
+          <input className="input" id="intake_intro" name="intake_intro" maxLength={500} defaultValue={intake.intro}
+            placeholder="z.B. Damit das Kick-Off gut vorbereitet ist, klären wir vorab ein paar Punkte." />
+        </div>
+        <p className="text-xs text-slate-500">Braucht den Claude-Zugang (ANTHROPIC_API_KEY). Ohne ihn wird normal gebucht.</p>
       </fieldset>
       <fieldset className="space-y-4 rounded-lg border border-slate-200 p-4">
         <legend className="px-1 text-sm font-semibold">KI-Terminverhandlung</legend>

@@ -44,12 +44,19 @@ export function normalizeGuests(guests: (string | Guest)[], bookerEmail: string)
 export async function createBooking(
   et: LoadedEventType,
   req: BookingRequest,
-  opts: { rules?: NegotiationRules; rescheduledFromId?: string } = {},
+  opts: {
+    rules?: NegotiationRules;
+    rescheduledFromId?: string;
+    /** Höheres Gäste-Limit, z.B. für Personen aus den KI-Vorabfragen */
+    maxGuests?: number;
+    intakeAnswers?: { questionId: string; question: string; answer: string }[];
+  } = {},
 ) {
   // Beim Verschieben bleiben die bisherigen Gäste, auch wenn das Limit inzwischen kleiner ist
   const guests = normalizeGuests(req.guests, req.email);
-  if (!opts.rescheduledFromId && guests.length > et.maxGuests) {
-    throw new BookingError(`Maximal ${et.maxGuests} weitere Gäste erlaubt.`);
+  const guestLimit = opts.maxGuests ?? et.maxGuests;
+  if (!opts.rescheduledFromId && guests.length > guestLimit) {
+    throw new BookingError(`Maximal ${guestLimit} weitere Gäste erlaubt.`);
   }
   const end = new Date(req.start.getTime() + et.durationMin * 60_000);
 
@@ -98,6 +105,7 @@ export async function createBooking(
         endTime: end,
         notes: req.notes,
         rescheduledFromId: opts.rescheduledFromId,
+        intakeAnswers: opts.intakeAnswers,
         attendees: {
           create: [
             { name: req.name, email: req.email, timeZone: req.timeZone },
@@ -244,7 +252,10 @@ export async function rescheduleBooking(manageToken: string, newStart: Date) {
         .map((a) => ({ email: a.email, name: a.name !== a.email ? a.name : undefined })),
       notes: old.notes ?? undefined,
     },
-    { rescheduledFromId: old.id },
+    {
+      rescheduledFromId: old.id,
+      intakeAnswers: (old.intakeAnswers as { questionId: string; question: string; answer: string }[] | null) ?? undefined,
+    },
   );
   await cancelBooking(manageToken);
   await emitWebhook(old.organizationId, "booking.rescheduled", {

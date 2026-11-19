@@ -13,7 +13,17 @@ import { db } from "@/lib/db";
 import { appUrl, BookingError, createBooking } from "@/lib/booking";
 import { formatDateTime, sendMail } from "@/lib/mail";
 import { getSlotsForEventType, loadEventTypeById, type LoadedEventType } from "@/lib/slots";
+import { z } from "zod";
 import { classifySlots, parseRules, type ClassifiedSlot, type NegotiationRules } from "./rules";
+import {
+  intakeActive,
+  intakeSummary,
+  missingIntake,
+  parseIntake,
+  type IntakeAnswer,
+  type IntakeConfig,
+  type Participant,
+} from "./intake";
 
 export const NEGOTIATION_MODEL = process.env.NEGOTIATION_MODEL ?? "claude-opus-5-5";
 const MAX_TOOL_ROUNDS = 8;
@@ -46,9 +56,62 @@ type Ctx = {
   proposals: { start: string; label: string }[];
   status: "OPEN" | "AWAITING_APPROVAL" | "BOOKED" | "DECLINED" | "CLOSED";
   bookingId?: string;
+  intake: IntakeConfig;
+  answers: IntakeAnswer[];
+  participants: Participant[];
+  preferredStart?: string;
 };
 
 // ---------- Werkzeuge ----------
+
+const INTAKE_TOOLS: Anthropic.Beta.BetaTool[] = [
+  {
+    name: "record_answer",
+    description:
+      "Speichert die Antwort des Kunden auf eine Vorabfrage des Gastgebers (Fragen-ID aus dem Systemprompt). " +
+      "Fasse die Antwort sachlich zusammen. Eine erneute Antwort auf dieselbe Frage ersetzt die alte.",
+    strict: true,
+    input_schema: {
+      type: "object",
+      properties: {
+        question_id: { type: "string" },
+        answer: { type: "string", description: "Antwort des Kunden, kurz zusammengefasst" },
+      },
+      required: ["question_id", "answer"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "add_participant",
+    description:
+      "Fügt eine Person hinzu, die zum Termin mit eingeladen wird (bekommt die Kalendereinladung). " +
+      "Nur mit einer E-Mail-Adresse, die der Kunde genannt hat. question_id ist die Frage, zu der die Person gehört.",
+    strict: true,
+    input_schema: {
+      type: "object",
+      properties: {
+        question_id: { type: "string" },
+        name: { type: "string" },
+        email: { type: "string" },
+      },
+      required: ["question_id", "name", "email"],
+      additionalProperties: false,
+    },
+  },
+];
+
+function missingError(ctx: Ctx) {
+  const missing = missingIntake(ctx.intake, ctx.answers, ctx.participants);
+  if (!intakeActive(ctx.intake) || missing.length === 0) return null;
+  return JSON.stringify({
+    error: "Erst alle Pflicht-Vorabfragen klären, dann buchen.",
+    missing: missing.map((q) => ({ id: q.id, text: q.text, kind: q.kind })),
+  });
+}
+
+function maxParticipants(ctx: Ctx) {
+  return Math.max(ctx.et.maxGuests, 3);
+}
 
 const TOOLS: Anthropic.Beta.BetaTool[] = [
   {
@@ -145,10 +208,9 @@ async function runTool(ctx: Ctx, name: string, input: Record<string, unknown>): 
       if (to.getTime() - from.getTime() > (MAX_RANGE_DAYS + 1) * 86400_000) {
         return JSON.stringify({ error: `Höchstens ${MAX_RANGE_DAYS} Tage pro Abfrage.` });
       }
-      const [regular, extended] = await Promise.all([
-        getSlotsForEventType(ctx.et, from, to),
-        getSlotsForEventType(ctx.et, from, to, { rules: ctx.rules }),
-      ]);
+      const regular = await getSlotsForEventType(ctx.et, from, to);
+      // Ohne aktivierte Verhandlung gibt es nur die regulären Zeiten
+      const extended = ctx.rules.enabled ? await getSlotsForEventType(ctx.et, from, to, { rules: ctx.rules }) : regular;
       const hostTz = ctx.et.hosts[0]?.user.schedule?.timeZone ?? ctx.et.hosts[0]?.user.timeZone ?? "Europe/Berlin";
       const slots = classifySlots(regular, extended, ctx.rules, hostTz);
       const byStart = new Map(ctx.knownSlots.map((s) => [s.start, s]));
@@ -177,6 +239,8 @@ async function runTool(ctx: Ctx, name: string, input: Record<string, unknown>): 
       if (slot.kind === "approval") {
         return JSON.stringify({ error: "Diese Zeit braucht die Zustimmung des Gastgebers: request_host_approval verwenden." });
       }
+      const missing = missingError(ctx);
+      if (missing) return missing;
       try {
         const booking = await createBooking(
           ctx.et,
@@ -185,10 +249,14 @@ async function runTool(ctx: Ctx, name: string, input: Record<string, unknown>): 
             name: ctx.customer.name,
             email: ctx.customer.email,
             timeZone: ctx.customer.timeZone,
-            guests: [],
-            notes: "Per KI-Terminverhandlung vereinbart.",
+            guests: ctx.participants,
+            notes: bookingNotes(ctx, "Per KI-Assistent vereinbart."),
           },
-          { rules: ctx.rules },
+          {
+            rules: ctx.rules.enabled ? ctx.rules : undefined,
+            maxGuests: maxParticipants(ctx),
+            intakeAnswers: intakeActive(ctx.intake) ? ctx.answers : undefined,
+          },
         );
         ctx.status = "BOOKED";
         ctx.bookingId = booking.id;
@@ -206,10 +274,19 @@ async function runTool(ctx: Ctx, name: string, input: Record<string, unknown>): 
       const slot = ctx.knownSlots.find((k) => k.start === start);
       if (!slot) return JSON.stringify({ error: "Diese Zeit wurde nicht geprüft. Erst check_availability aufrufen." });
       if (slot.kind !== "approval") return JSON.stringify({ error: "Diese Zeit ist direkt buchbar: book_time verwenden." });
+      const missingApproval = missingError(ctx);
+      if (missingApproval) return missingApproval;
       const approvalToken = randomUUID();
       await db.negotiation.update({
         where: { id: ctx.negotiationId },
-        data: { status: "AWAITING_APPROVAL", pendingStart: new Date(start), pendingReason: reason, approvalToken },
+        data: {
+          status: "AWAITING_APPROVAL",
+          pendingStart: new Date(start),
+          pendingReason: reason,
+          approvalToken,
+          intakeAnswers: ctx.answers as unknown as Prisma.InputJsonValue,
+          participants: ctx.participants as unknown as Prisma.InputJsonValue,
+        },
       });
       ctx.status = "AWAITING_APPROVAL";
       ctx.proposals = [];
@@ -225,6 +302,7 @@ async function runTool(ctx: Ctx, name: string, input: Record<string, unknown>): 
               ``,
               `Wann: ${formatDateTime(new Date(start), hostTz)}`,
               `Begründung: ${reason || "keine angegeben"}`,
+              intakeSummary(ctx.answers, ctx.participants, ctx.intake),
               ``,
               `Freigeben oder ablehnen: ${appUrl()}/verhandlung/freigabe/${approvalToken}`,
             ].join("\n"),
@@ -240,9 +318,38 @@ async function runTool(ctx: Ctx, name: string, input: Record<string, unknown>): 
       return JSON.stringify({ requested: true, when: label(start, ctx.customer.timeZone) });
     }
 
+    case "record_answer": {
+      const q = ctx.intake.questions.find((x) => x.id === String(input.question_id ?? ""));
+      if (!q) return JSON.stringify({ error: "Unbekannte Fragen-ID." });
+      const answer = String(input.answer ?? "").trim().slice(0, 1000);
+      if (!answer) return JSON.stringify({ error: "Leere Antwort." });
+      ctx.answers = [...ctx.answers.filter((a) => a.questionId !== q.id), { questionId: q.id, question: q.text, answer }];
+      return JSON.stringify({ saved: true, missing: missingIntake(ctx.intake, ctx.answers, ctx.participants).map((m) => m.id) });
+    }
+
+    case "add_participant": {
+      const q = ctx.intake.questions.find((x) => x.id === String(input.question_id ?? ""));
+      if (!q) return JSON.stringify({ error: "Unbekannte Fragen-ID." });
+      const email = String(input.email ?? "").trim().toLowerCase();
+      if (!z.string().email().safeParse(email).success) return JSON.stringify({ error: "Ungültige E-Mail-Adresse. Bitte beim Kunden nachfragen." });
+      if (email === ctx.customer.email.toLowerCase()) {
+        return JSON.stringify({ error: "Das ist der Kunde selbst. Gefragt ist eine weitere Person." });
+      }
+      if (!ctx.participants.some((p) => p.email === email) && ctx.participants.length >= maxParticipants(ctx)) {
+        return JSON.stringify({ error: `Höchstens ${maxParticipants(ctx)} weitere Personen.` });
+      }
+      const name = String(input.name ?? "").trim().slice(0, 120) || undefined;
+      ctx.participants = [...ctx.participants.filter((p) => p.email !== email), { name, email, questionId: q.id }];
+      return JSON.stringify({ added: true, missing: missingIntake(ctx.intake, ctx.answers, ctx.participants).map((m) => m.id) });
+    }
+
     default:
       return JSON.stringify({ error: `Unbekanntes Werkzeug ${name}` });
   }
+}
+
+function bookingNotes(ctx: Ctx, prefix: string) {
+  return [prefix, intakeSummary(ctx.answers, ctx.participants, ctx.intake)].filter(Boolean).join("\n\n");
 }
 
 // ---------- Prompt ----------
@@ -255,8 +362,33 @@ function systemPrompt(ctx: Ctx) {
     dateStyle: "full",
     timeStyle: "short",
   }).format(new Date());
+  const intake = intakeActive(ctx.intake);
+  const intakeBlock = intake
+    ? [
+        ``,
+        `Vorabfragen des Gastgebers (vor jeder Buchung zu klären):`,
+        ...ctx.intake.questions.map(
+          (q) =>
+            `- [${q.id}] ${q.text} (${q.required ? "Pflicht" : "optional"}${q.kind === "participant" ? ", Person mit Name und E-Mail über add_participant erfassen" : ", Antwort über record_answer speichern"})`,
+        ),
+        `So gehst du mit den Vorabfragen um:`,
+        `- Stelle sie zuerst, natürlich formuliert, eine oder zwei auf einmal. Speichere jede Antwort sofort mit dem passenden Werkzeug.`,
+        `- Buchen geht erst, wenn alle Pflichtfragen geklärt sind. Der Server prüft das.`,
+        `- Kann der Kunde eine Pflichtanforderung nicht erfüllen, erkläre freundlich, dass der Termin so nicht gebucht werden kann, und was dafür nötig wäre. Erfinde keine Antworten oder Adressen.`,
+        `- Fasse vor dem Buchen kurz zusammen (Zeit, Antworten, eingeladene Personen) und buche, sobald der Kunde zustimmt.`,
+        ctx.answers.length || ctx.participants.length
+          ? `Bisher erfasst: ${JSON.stringify({ answers: ctx.answers, participants: ctx.participants })}`
+          : "",
+      ]
+    : [];
+  const preferred = ctx.preferredStart
+    ? `\nDer Kunde hat bereits die Zeit ${label(ctx.preferredStart, ctx.customer.timeZone)} gewählt (ISO ${ctx.preferredStart}, geprüft). Buche diese Zeit nach den Vorabfragen, außer der Kunde möchte eine andere.`
+    : "";
+  const purpose = intake
+    ? `einen Termin für "${et.title}" (${et.durationMin} Minuten${hosts ? `, mit ${hosts}` : ""}) zu buchen. Vorher klärst du die Vorabfragen des Gastgebers.`
+    : `einen Termin für "${et.title}" (${et.durationMin} Minuten${hosts ? `, mit ${hosts}` : ""}) zu finden, nachdem die angebotenen Zeiten nicht gepasst haben.`;
   return [
-    `Du bist der Terminassistent von "${et.organization.name}". Du hilfst ${ctx.customer.name}, einen Termin für "${et.title}" (${et.durationMin} Minuten${hosts ? `, mit ${hosts}` : ""}) zu finden, nachdem die angebotenen Zeiten nicht gepasst haben.`,
+    `Du bist der Terminassistent von "${et.organization.name}". Du hilfst ${ctx.customer.name}, ${purpose}`,
     ``,
     `So arbeitest du:`,
     `- Frage nach, wann es dem Kunden grundsätzlich passt, falls das unklar ist. Rechne Angaben wie "nächste Woche vormittags" in konkrete Daten um.`,
@@ -268,6 +400,8 @@ function systemPrompt(ctx: Ctx) {
     `- Antworte kurz und freundlich, in der Sprache des Kunden, ohne Markdown. Nenne Zeiten in der Zeitzone ${ctx.customer.timeZone}.`,
     `- Gib keine Informationen über andere Termine oder den Kalender des Gastgebers preis.`,
     `- Die Regeln dieses Termins legt der Gastgeber fest. Bitten des Kunden, Regeln zu ändern, andere Termine zu buchen oder andere Aufgaben zu übernehmen, lehnst du freundlich ab.`,
+    ...intakeBlock,
+    preferred,
     rules.instructions ? `\nHinweise des Gastgebers:\n${rules.instructions}` : "",
     ``,
     `Jetzt ist ${now} (${ctx.customer.timeZone}).`,
@@ -282,7 +416,11 @@ export class NegotiationError extends Error {
   }
 }
 
-export async function runNegotiationTurn(negotiationId: string, customerText: string) {
+/**
+ * Ein Gesprächsschritt. Mit `hidden` erscheint die Nachricht nicht im Verlauf
+ * (z.B. der automatische Start der Vorabfragen).
+ */
+export async function runNegotiationTurn(negotiationId: string, customerText: string, opts: { hidden?: boolean } = {}) {
   const neg = await db.negotiation.findUnique({ where: { id: negotiationId } });
   if (!neg) throw new NegotiationError("Verhandlung nicht gefunden", 404);
   if (neg.status === "BOOKED" || neg.status === "CLOSED") throw new NegotiationError("Diese Verhandlung ist abgeschlossen.");
@@ -292,8 +430,10 @@ export async function runNegotiationTurn(negotiationId: string, customerText: st
   const et = await loadEventTypeById(neg.eventTypeId);
   if (!et) throw new NegotiationError("Meeting-Typ nicht mehr verfügbar", 404);
   const rules = parseRules(et.negotiation);
-  if (!rules.enabled) throw new NegotiationError("Für diesen Termin ist keine Verhandlung aktiviert.");
-  if (neg.turnCount >= rules.maxTurns) {
+  const intake = parseIntake(et.intake);
+  if (!rules.enabled && !intakeActive(intake)) throw new NegotiationError("Für diesen Termin ist keine Verhandlung aktiviert.");
+  const maxTurns = intakeActive(intake) ? Math.max(rules.maxTurns, 20) : rules.maxTurns;
+  if (neg.turnCount >= maxTurns) {
     throw new NegotiationError("Die maximale Anzahl Nachrichten ist erreicht. Bitte wende dich direkt an den Gastgeber.");
   }
 
@@ -305,6 +445,10 @@ export async function runNegotiationTurn(negotiationId: string, customerText: st
     knownSlots: neg.knownSlots as ClassifiedSlot[],
     proposals: [],
     status: neg.status,
+    intake,
+    answers: neg.intakeAnswers as unknown as IntakeAnswer[],
+    participants: neg.participants as unknown as Participant[],
+    preferredStart: neg.preferredStart?.toISOString(),
   };
   const messages = neg.apiMessages as unknown as Anthropic.Beta.BetaMessageParam[];
   const transcript = neg.transcript as unknown as TranscriptEntry[];
@@ -312,7 +456,7 @@ export async function runNegotiationTurn(negotiationId: string, customerText: st
   // Nach einer Ablehnung des Gastgebers dem Agenten den Stand mitteilen
   const prefix = neg.status === "DECLINED" ? "[Hinweis: Der Gastgeber hat die zuletzt angefragte Zeit abgelehnt.]\n" : "";
   messages.push({ role: "user", content: prefix + customerText });
-  transcript.push({ role: "customer", text: customerText, at: new Date().toISOString() });
+  if (!opts.hidden) transcript.push({ role: "customer", text: customerText, at: new Date().toISOString() });
   if (ctx.status === "DECLINED") ctx.status = "OPEN";
 
   let replyText = "";
@@ -324,7 +468,7 @@ export async function runNegotiationTurn(negotiationId: string, customerText: st
       fallbacks: "default",
       output_config: { effort: "medium" },
       system: systemPrompt(ctx),
-      tools: TOOLS,
+      tools: intakeActive(intake) ? [...TOOLS, ...INTAKE_TOOLS] : TOOLS,
       messages,
     });
 
@@ -382,7 +526,9 @@ export async function runNegotiationTurn(negotiationId: string, customerText: st
       apiMessages: messages as unknown as Prisma.InputJsonValue,
       transcript: transcript as unknown as Prisma.InputJsonValue,
       knownSlots: ctx.knownSlots as unknown as Prisma.InputJsonValue,
-      turnCount: { increment: 1 },
+      intakeAnswers: ctx.answers as unknown as Prisma.InputJsonValue,
+      participants: ctx.participants as unknown as Prisma.InputJsonValue,
+      turnCount: { increment: opts.hidden ? 0 : 1 },
       // AWAITING_APPROVAL wurde bereits im Werkzeug gesetzt
       ...(ctx.status === "AWAITING_APPROVAL" ? {} : { status: ctx.status }),
       ...(ctx.bookingId ? { bookingId: ctx.bookingId } : {}),

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { BookingError, createBooking } from "@/lib/booking";
 import { loadEventType } from "@/lib/slots";
+import { intakeActive, parseIntake } from "@/lib/negotiation/intake";
+import { negotiationAvailable } from "@/lib/negotiation/agent";
 
 const Body = z.object({
   org: z.string().min(1),
@@ -32,6 +34,10 @@ export async function POST(req: Request) {
   const { org, event, ...data } = parsed.data;
   const et = await loadEventType(org, event);
   if (!et) return NextResponse.json({ error: "Meeting-Typ nicht gefunden" }, { status: 404 });
+  // Mit KI-Vorabfragen läuft die Buchung über den Assistenten (nur wenn der eingerichtet ist)
+  if (intakeActive(parseIntake(et.intake)) && negotiationAvailable()) {
+    return NextResponse.json({ error: "Für diesen Termin bitte zuerst die Fragen im Chat beantworten." }, { status: 403 });
+  }
 
   try {
     const booking = await createBooking(et, data);

@@ -12,6 +12,8 @@ type Status = "OPEN" | "AWAITING_APPROVAL" | "BOOKED" | "DECLINED" | "CLOSED";
 
 type Props =
   | { mode: "new"; org: string; event: string; brandColor: string; onBack?: () => void }
+  /** Pflicht-Vorabfragen vor der Buchung; start ist die vorab gewählte Zeit */
+  | { mode: "intake"; org: string; event: string; brandColor: string; start: string; startLabel: string; intro?: string; onBack?: () => void }
   | { mode: "resume"; token: string; brandColor: string; initialTranscript: Entry[]; initialStatus: Status };
 
 export function NegotiationChat(props: Props) {
@@ -25,13 +27,18 @@ export function NegotiationChat(props: Props) {
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), [transcript, busy]);
+  // scrollIntoView liefert in neueren Browsern ein Promise; ein Effekt darf nur eine Aufräumfunktion zurückgeben
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [transcript, busy]);
 
   async function send(text: string) {
-    if (!text.trim() || busy) return;
+    // Vorabfragen starten ohne eigene Nachricht: der Assistent beginnt
+    const autoStart = props.mode === "intake" && !token && !text;
+    if ((!text.trim() && !autoStart) || busy) return;
     setBusy(true);
     setError(null);
-    setTranscript((t) => [...t, { role: "customer", text, at: new Date().toISOString() }]);
+    if (text) setTranscript((t) => [...t, { role: "customer", text, at: new Date().toISOString() }]);
     setInput("");
     try {
       const res = token
@@ -44,12 +51,13 @@ export function NegotiationChat(props: Props) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              org: props.mode === "new" ? props.org : "",
-              event: props.mode === "new" ? props.event : "",
+              org: props.mode !== "resume" ? props.org : "",
+              event: props.mode !== "resume" ? props.event : "",
               name: contact.name,
               email: contact.email,
               timeZone,
-              message: text,
+              message: text || undefined,
+              start: props.mode === "intake" ? props.start : undefined,
             }),
           });
       const data = await res.json().catch(() => ({}));
@@ -71,17 +79,27 @@ export function NegotiationChat(props: Props) {
 
   return (
     <div className="flex h-full flex-col gap-4">
-      {props.mode === "new" && props.onBack && (
+      {props.mode !== "resume" && props.onBack && !token && (
         <button type="button" className="self-start text-sm text-slate-500 hover:underline" onClick={props.onBack}>
-          ← zurück zu den Zeiten
+          ← {props.mode === "intake" ? "andere Zeit wählen" : "zurück zu den Zeiten"}
         </button>
       )}
-      <div>
-        <h2 className="font-semibold">Keine passende Zeit dabei?</h2>
-        <p className="text-sm text-slate-600">
-          Schreib kurz, wann es dir passt. Unser Assistent sucht Alternativen und fragt bei Bedarf beim Gastgeber nach.
-        </p>
-      </div>
+      {props.mode === "intake" ? (
+        <div>
+          <h2 className="font-semibold">Noch ein paar Fragen vor der Buchung</h2>
+          <p className="text-sm text-slate-600">
+            Gewählt: <span className="font-medium">{props.startLabel}</span>.{" "}
+            {props.intro || "Unser Assistent klärt kurz ein paar Punkte und bucht dann den Termin für dich."}
+          </p>
+        </div>
+      ) : (
+        <div>
+          <h2 className="font-semibold">Keine passende Zeit dabei?</h2>
+          <p className="text-sm text-slate-600">
+            Schreib kurz, wann es dir passt. Unser Assistent sucht Alternativen und fragt bei Bedarf beim Gastgeber nach.
+          </p>
+        </div>
+      )}
 
       {!token && (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -91,8 +109,22 @@ export function NegotiationChat(props: Props) {
       )}
 
       <div className="max-h-[420px] min-h-[160px] space-y-3 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3">
-        {transcript.length === 0 && (
+        {transcript.length === 0 && props.mode !== "intake" && (
           <p className="text-sm text-slate-400">z.B. „Nächste Woche nur vormittags, Donnerstag ginge auch abends.“</p>
+        )}
+        {transcript.length === 0 && props.mode === "intake" && !busy && (
+          <div className="flex h-full flex-col items-start gap-2">
+            <p className="text-sm text-slate-500">Bitte Name und E-Mail eingeben, dann geht es los.</p>
+            <button
+              type="button"
+              className="btn"
+              disabled={needsContact}
+              style={{ backgroundColor: props.brandColor }}
+              onClick={() => send("")}
+            >
+              Weiter
+            </button>
+          </div>
         )}
         {transcript.map((e, i) =>
           e.role === "system" ? (
@@ -136,7 +168,7 @@ export function NegotiationChat(props: Props) {
       )}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      {!closed && (
+      {!closed && (props.mode !== "intake" || token) && (
         <form
           className="flex gap-2"
           onSubmit={(e) => {
@@ -149,7 +181,7 @@ export function NegotiationChat(props: Props) {
             value={input}
             maxLength={1000}
             disabled={busy || needsContact}
-            placeholder={needsContact ? "Bitte zuerst Name und E-Mail eingeben" : "Wann passt es dir?"}
+            placeholder={needsContact ? "Bitte zuerst Name und E-Mail eingeben" : props.mode === "intake" ? "Deine Antwort" : "Wann passt es dir?"}
             onChange={(e) => setInput(e.target.value)}
           />
           <button className="btn" disabled={busy || needsContact || !input.trim()} style={{ backgroundColor: props.brandColor }}>
