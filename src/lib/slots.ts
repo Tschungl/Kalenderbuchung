@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { computeSlots, type DateOverride, type HostAvailabilityInput, type Slot, type WeeklyHours } from "@/lib/availability";
-import { getGoogleBusy } from "@/lib/google";
+import { getBusy } from "@/lib/calendar";
 import { extendWeekly, type NegotiationRules } from "@/lib/negotiation/rules";
 
 export async function loadEventType(orgSlug: string, eventSlug: string) {
@@ -25,7 +25,7 @@ export async function loadEventTypeById(id: string) {
 
 export type LoadedEventType = NonNullable<Awaited<ReturnType<typeof loadEventType>>>;
 
-/** Sammelt Arbeitszeiten + Belegt-Zeiten (Google + eigene Buchungen) und berechnet Slots. */
+/** Sammelt Arbeitszeiten + Belegt-Zeiten (Google/Outlook + eigene Buchungen) und berechnet Slots. */
 /**
  * Mit `rules` werden die erweiterten Verhandlungszeiten berücksichtigt
  * (längere Tage, ggf. Wochenende, kürzerer Vorlauf).
@@ -41,8 +41,8 @@ export async function getSlotsForEventType(
     et.hosts.map(async (h) => {
       const schedule = h.user.schedule;
       const [googleBusy, bookings] = await Promise.all([
-        getGoogleBusy(h.userId, from, to).catch((err) => {
-          console.error(`[slots] Google freeBusy für ${h.userId} fehlgeschlagen`, err);
+        getBusy(h.userId, from, to).catch((err) => {
+          console.error(`[slots] Kalender-Abfrage für ${h.userId} fehlgeschlagen`, err);
           return null;
         }),
         db.booking.findMany({

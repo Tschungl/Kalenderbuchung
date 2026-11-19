@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { DEFAULT_WEEKLY } from "@/lib/availability";
 
 /** Pfade, die nicht als Organisations-Slug vergeben werden dürfen. */
-const RESERVED = new Set(["api", "dashboard", "booking", "login", "invite", "onboarding", "verhandlung", "_next", "favicon.ico", "admin", "embed", "embed.js"]);
+const RESERVED = new Set(["api", "dashboard", "booking", "login", "invite", "onboarding", "verhandlung", "_next", "favicon.ico", "admin", "embed", "embed.js", "site", "robots.txt"]);
 
 export function slugify(input: string): string {
   return (
@@ -51,7 +51,7 @@ export async function bootstrapNewUser(user: { id: string; name?: string | null;
         create: {
           slug: "30min",
           title: "30 Minuten Gespräch",
-          description: "Kurzes Kennenlernen per Google Meet.",
+          description: "Kurzes Kennenlernen per Videokonferenz.",
           durationMin: 30,
           hosts: { create: { userId: user.id } },
         },

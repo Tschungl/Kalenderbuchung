@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { requireManager } from "@/lib/session";
 import { z } from "zod";
 import { BUTTON_STYLES, FONT_STYLES, PAGE_THEMES } from "@/lib/branding";
+import { appHost, checkDomainTxt, normalizeDomain } from "@/lib/domains";
 
 const BrandingSchema = z.object({
   brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
@@ -35,4 +36,33 @@ export async function updateBranding(formData: FormData) {
   });
   revalidatePath("/dashboard", "layout");
   revalidatePath(`/${org.slug}`, "layout");
+}
+
+export async function setCustomDomain(formData: FormData) {
+  const { org } = await requireManager();
+  const domain = normalizeDomain(String(formData.get("domain") ?? ""));
+  if (!domain) throw new Error("Bitte eine gültige Domain angeben, z.B. termine.firma.de");
+  if (domain === appHost().replace(/:\d+$/, "")) throw new Error("Das ist die Adresse der App selbst.");
+  const taken = await db.organization.findFirst({ where: { customDomain: domain, id: { not: org.id } } });
+  if (taken) throw new Error("Diese Domain wird bereits von einer anderen Organisation benutzt.");
+  await db.organization.update({
+    where: { id: org.id },
+    data: { customDomain: domain, domainVerifiedAt: null },
+  });
+  revalidatePath("/dashboard/settings");
+}
+
+export async function verifyCustomDomain() {
+  const { org } = await requireManager();
+  if (!org.customDomain) return;
+  const ok = await checkDomainTxt(org.customDomain, org.domainToken);
+  await db.organization.update({ where: { id: org.id }, data: { domainVerifiedAt: ok ? new Date() : null } });
+  revalidatePath("/dashboard/settings");
+  if (!ok) throw new Error("Der TXT-Eintrag wurde noch nicht gefunden. DNS-Änderungen brauchen manchmal bis zu einer Stunde.");
+}
+
+export async function removeCustomDomain() {
+  const { org } = await requireManager();
+  await db.organization.update({ where: { id: org.id }, data: { customDomain: null, domainVerifiedAt: null } });
+  revalidatePath("/dashboard/settings");
 }

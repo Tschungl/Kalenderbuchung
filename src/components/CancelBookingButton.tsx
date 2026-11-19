@@ -8,7 +8,7 @@ export function CancelBookingButton({ token }: { token: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   return (
-    <div className="space-y-2 pt-2">
+    <div className="space-y-2">
       <button
         className="btn-secondary"
         disabled={busy}

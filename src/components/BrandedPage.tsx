@@ -10,12 +10,12 @@ export function BrandedPage({ org, children, compact }: { org: Branding & { name
   );
 }
 
-export function BrandHeader({ org, link }: { org: Branding & { name: string; slug: string }; link?: boolean }) {
+export function BrandHeader({ org, href }: { org: Branding & { name: string }; href?: string }) {
   const content = (
     <span className="flex items-center gap-3">
       {org.logoUrl && <img src={org.logoUrl} alt="" className="h-10 w-10 rounded-full object-cover" />}
       <span className="text-lg font-semibold">{org.name}</span>
     </span>
   );
-  return <div className="mb-6">{link ? <a href={`/${org.slug}`}>{content}</a> : content}</div>;
+  return <div className="mb-6">{href ? <a href={href}>{content}</a> : content}</div>;
 }

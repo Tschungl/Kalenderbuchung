@@ -10,7 +10,7 @@ const MODES = [
 ] as const;
 
 const LOCATIONS = [
-  ["GOOGLE_MEET", "Google Meet (Link automatisch)"],
+  ["GOOGLE_MEET", "Videokonferenz (Google Meet oder Teams, Link automatisch)"],
   ["PHONE", "Telefon"],
   ["IN_PERSON", "Vor Ort"],
   ["CUSTOM_LINK", "Eigener Link (z.B. Zoom)"],

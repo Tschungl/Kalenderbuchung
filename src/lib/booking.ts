@@ -1,9 +1,9 @@
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { pickRoundRobinHost } from "@/lib/availability";
-import { cancelGoogleEvent, createGoogleEvent } from "@/lib/google";
+import { cancelCalendarEvent, createCalendarEvent } from "@/lib/calendar";
 import { formatDateTime, sendMail } from "@/lib/mail";
-import { getSlotsForEventType, type LoadedEventType } from "@/lib/slots";
+import { getSlotsForEventType, loadEventTypeById, type LoadedEventType } from "@/lib/slots";
 import type { NegotiationRules } from "@/lib/negotiation/rules";
 import { bookingPayload, emitWebhook } from "@/lib/integrations/webhooks";
 
@@ -25,9 +25,10 @@ export type BookingRequest = {
 export async function createBooking(
   et: LoadedEventType,
   req: BookingRequest,
-  opts: { rules?: NegotiationRules } = {},
+  opts: { rules?: NegotiationRules; rescheduledFromId?: string } = {},
 ) {
-  if (req.guests.length > et.maxGuests) {
+  // Beim Verschieben bleiben die bisherigen Gäste, auch wenn das Limit inzwischen kleiner ist
+  if (!opts.rescheduledFromId && req.guests.length > et.maxGuests) {
     throw new BookingError(`Maximal ${et.maxGuests} weitere Gäste erlaubt.`);
   }
   const end = new Date(req.start.getTime() + et.durationMin * 60_000);
@@ -76,6 +77,7 @@ export async function createBooking(
         startTime: req.start,
         endTime: end,
         notes: req.notes,
+        rescheduledFromId: opts.rescheduledFromId,
         attendees: {
           create: [
             { name: req.name, email: req.email, timeZone: req.timeZone },
@@ -86,9 +88,9 @@ export async function createBooking(
     });
   });
 
-  // Google-Event anlegen; schlägt das fehl, Buchung zurückrollen
+  // Kalender-Event anlegen (Google oder Outlook); schlägt das fehl, Buchung zurückrollen
   try {
-    const { eventId, meetUrl } = await createGoogleEvent({
+    const { eventId, meetUrl, provider } = await createCalendarEvent({
       organizerUserId: organizerId,
       calendarId: organizer.targetCalendarId,
       summary: `${et.title}: ${req.name}`,
@@ -105,27 +107,30 @@ export async function createBooking(
       location: et.locationType === "GOOGLE_MEET" ? undefined : et.locationValue ?? undefined,
       requestId: randomUUID(),
     });
-    await db.booking.update({ where: { id: booking.id }, data: { googleEventId: eventId, meetingUrl: meetUrl } });
+    await db.booking.update({
+      where: { id: booking.id },
+      data: { googleEventId: eventId, meetingUrl: meetUrl, calendarProvider: provider },
+    });
     booking.googleEventId = eventId;
     booking.meetingUrl = meetUrl;
   } catch (err) {
     await db.booking.delete({ where: { id: booking.id } });
-    console.error("[booking] Google-Event konnte nicht angelegt werden", err);
+    console.error("[booking] Kalender-Event konnte nicht angelegt werden", err);
     throw new BookingError("Der Termin konnte nicht im Kalender eingetragen werden. Bitte später erneut versuchen.", 502);
   }
 
   const when = formatDateTime(req.start, req.timeZone);
   await sendMail(
     req.email,
-    `Bestätigt: ${et.title} am ${when}`,
+    `${opts.rescheduledFromId ? "Verschoben" : "Bestätigt"}: ${et.title} am ${when}`,
     [
       `Hallo ${req.name},`,
       ``,
-      `dein Termin "${et.title}" mit ${organizer.name ?? et.organization.name} ist bestätigt.`,
+      `dein Termin "${et.title}" mit ${organizer.name ?? et.organization.name} ist ${opts.rescheduledFromId ? "verschoben und neu " : ""}bestätigt.`,
       `Wann: ${when}`,
       booking.meetingUrl ? `Video: ${booking.meetingUrl}` : et.locationValue ? `Ort: ${et.locationValue}` : "",
       ``,
-      `Absagen: ${appUrl()}/booking/${booking.manageToken}`,
+      `Verschieben oder absagen: ${appUrl()}/booking/${booking.manageToken}`,
     ].join("\n"),
   ).catch((err) => console.error("[booking] Bestätigungsmail fehlgeschlagen", err));
 
@@ -148,13 +153,48 @@ export async function cancelBooking(manageToken: string) {
   if (!booking) throw new BookingError("Buchung nicht gefunden.", 404);
   if (booking.status === "CANCELLED") return booking;
   if (booking.googleEventId) {
-    await cancelGoogleEvent(booking.hostId, booking.googleEventId).catch((err) =>
-      console.error("[booking] Google-Event konnte nicht gelöscht werden", err),
+    await cancelCalendarEvent(booking.hostId, booking.googleEventId, booking.calendarProvider).catch((err) =>
+      console.error("[booking] Kalender-Event konnte nicht gelöscht werden", err),
     );
   }
   const cancelled = await db.booking.update({ where: { id: booking.id }, data: { status: "CANCELLED" } });
   await emitWebhook(booking.organizationId, "booking.cancelled", bookingPayload({ ...cancelled, attendees: booking.attendees }));
   return cancelled;
+}
+
+/**
+ * Verschiebt eine Buchung: legt sie zur neuen Zeit an (mit allen Prüfungen) und sagt
+ * erst danach die alte ab. Klappt die neue Buchung nicht, bleibt die alte bestehen.
+ */
+export async function rescheduleBooking(manageToken: string, newStart: Date) {
+  const old = await db.booking.findUnique({ where: { manageToken }, include: { attendees: true } });
+  if (!old) throw new BookingError("Buchung nicht gefunden.", 404);
+  if (old.status === "CANCELLED") throw new BookingError("Dieser Termin wurde bereits abgesagt.", 409);
+  if (old.startTime < new Date()) throw new BookingError("Vergangene Termine können nicht verschoben werden.", 400);
+  if (old.startTime.getTime() === newStart.getTime()) throw new BookingError("Das ist dieselbe Zeit.", 400);
+  const et = await loadEventTypeById(old.eventTypeId);
+  if (!et) throw new BookingError("Dieser Meeting-Typ ist nicht mehr buchbar.", 404);
+  const main = old.attendees.find((a) => !a.isGuest) ?? old.attendees[0];
+  if (!main) throw new BookingError("Buchung ohne Teilnehmer.", 400);
+
+  const created = await createBooking(
+    et,
+    {
+      start: newStart,
+      name: main.name,
+      email: main.email,
+      timeZone: main.timeZone,
+      guests: old.attendees.filter((a) => a.isGuest).map((a) => a.email),
+      notes: old.notes ?? undefined,
+    },
+    { rescheduledFromId: old.id },
+  );
+  await cancelBooking(manageToken);
+  await emitWebhook(old.organizationId, "booking.rescheduled", {
+    from: { id: old.id, start: old.startTime.toISOString() },
+    to: { id: created.id, start: created.startTime.toISOString() },
+  });
+  return created;
 }
 
 export function appUrl() {

@@ -5,19 +5,19 @@ import { negotiationAvailable } from "@/lib/negotiation/agent";
 import { parseRules } from "@/lib/negotiation/rules";
 
 const LOCATION_LABEL = {
-  GOOGLE_MEET: "Google Meet",
+  GOOGLE_MEET: "Videokonferenz",
   PHONE: "Telefon",
   IN_PERSON: "Vor Ort",
   CUSTOM_LINK: "Online",
 } as const;
 
 /** Inhalt einer Meeting-Typ-Seite; genutzt von der Buchungsseite und der Einbettung. */
-export function EventBookingView({ et, embed }: { et: NonNullable<LoadedEventType>; embed?: boolean }) {
+export function EventBookingView({ et, embed, homeHref }: { et: NonNullable<LoadedEventType>; embed?: boolean; homeHref?: string }) {
   const org = et.organization;
   const hostNames = et.hosts.map((h) => h.user.name ?? "").filter(Boolean);
   return (
     <>
-      {!embed && <BrandHeader org={org} link />}
+      {!embed && <BrandHeader org={org} href={homeHref ?? `/${org.slug}`} />}
       <div className={`card grid gap-8 md:grid-cols-[260px_1fr] ${embed ? "shadow-none" : ""}`}>
         <aside className="space-y-3 border-slate-100 md:border-r md:pr-6">
           {embed && <p className="text-sm text-slate-500">{org.name}</p>}

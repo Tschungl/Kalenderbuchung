@@ -13,6 +13,8 @@ type Props = {
   negotiationEnabled?: boolean;
   confirmationText?: string | null;
   embed?: boolean;
+  /** Verwaltungs-Token einer bestehenden Buchung: dann wird verschoben statt neu gebucht */
+  rescheduleToken?: string;
 };
 
 const DAY_MS = 24 * 3600_000;
@@ -25,13 +27,13 @@ function startOfWeek(d: Date) {
   return x;
 }
 
-export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, negotiationEnabled, confirmationText, embed }: Props) {
+export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, negotiationEnabled, confirmationText, embed, rescheduleToken }: Props) {
   const timeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Slot | null>(null);
-  const [done, setDone] = useState<{ meetingUrl: string | null; start: string } | null>(null);
+  const [done, setDone] = useState<{ meetingUrl: string | null; start: string; manageToken?: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [negotiating, setNegotiating] = useState(false);
 
@@ -61,11 +63,48 @@ export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, 
   if (done) {
     return (
       <div className="space-y-3">
-        <h2 className="text-xl font-semibold">✅ Termin bestätigt</h2>
+        <h2 className="text-xl font-semibold">✅ Termin {rescheduleToken ? "verschoben" : "bestätigt"}</h2>
         <p>{longFmt.format(new Date(done.start))}</p>
         <p className="text-sm text-slate-600">Eine Kalendereinladung ist unterwegs.</p>
         {confirmationText && <p className="whitespace-pre-line text-sm">{confirmationText}</p>}
         {done.meetingUrl && <a href={done.meetingUrl} className="text-sm text-blue-600 underline">{done.meetingUrl}</a>}
+        {rescheduleToken && done.manageToken && (
+          <p className="text-sm">
+            <a href={`/booking/${done.manageToken}`} className="underline">Zur neuen Buchung</a>
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  if (selected && rescheduleToken) {
+    return (
+      <div className="space-y-4">
+        <button type="button" className="text-sm text-slate-500 hover:underline" onClick={() => setSelected(null)}>
+          ← andere Zeit wählen
+        </button>
+        <p className="font-medium">Neue Zeit: {longFmt.format(new Date(selected.start))} ({durationMin} Min.)</p>
+        <p className="text-sm text-slate-600">Der bisherige Termin wird danach automatisch abgesagt.</p>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <button
+          className="brand-btn px-4 py-2 text-sm"
+          disabled={submitting}
+          onClick={async () => {
+            setSubmitting(true);
+            setError(null);
+            const res = await fetch(`/api/bookings/${rescheduleToken}/reschedule`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ start: selected.start }),
+            });
+            const data = await res.json().catch(() => ({}));
+            setSubmitting(false);
+            if (res.ok) setDone({ meetingUrl: data.meetingUrl, start: selected.start, manageToken: data.manageToken });
+            else setError(data.error ?? "Verschieben fehlgeschlagen");
+          }}
+        >
+          {submitting ? "Wird verschoben…" : "Termin verschieben"}
+        </button>
       </div>
     );
   }
@@ -176,7 +215,7 @@ export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, 
       {slots && slots.length === 0 && (
         <p className="text-sm text-slate-500">In dieser Woche ist nichts frei. Schau in der nächsten Woche nach.</p>
       )}
-      {negotiationEnabled && slots && (
+      {negotiationEnabled && slots && !rescheduleToken && (
         <div className="rounded-lg border border-dashed border-slate-300 p-4 text-sm">
           <span className="text-slate-600">Keine passende Zeit dabei? </span>
           <button type="button" className="font-medium underline" style={{ color: brandColor }} onClick={() => setNegotiating(true)}>
