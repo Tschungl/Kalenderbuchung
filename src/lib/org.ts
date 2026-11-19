@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { DEFAULT_WEEKLY } from "@/lib/availability";
 
 /** Pfade, die nicht als Organisations-Slug vergeben werden dürfen. */
-const RESERVED = new Set(["api", "dashboard", "booking", "login", "invite", "onboarding", "verhandlung", "_next", "favicon.ico", "admin"]);
+const RESERVED = new Set(["api", "dashboard", "booking", "login", "invite", "onboarding", "verhandlung", "_next", "favicon.ico", "admin", "embed", "embed.js"]);
 
 export function slugify(input: string): string {
   return (

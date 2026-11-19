@@ -1,13 +1,44 @@
+import { db } from "@/lib/db";
 import { canManage, requireMember } from "@/lib/session";
+import { BrandingEditor } from "@/components/BrandingEditor";
 import { createOrganization, updateOrganization } from "../team/actions";
+import { updateBranding } from "./actions";
 
 export default async function SettingsPage() {
   const { org, membership } = await requireMember();
   const manager = canManage(membership.role);
+  const events = await db.eventType.findMany({
+    where: { organizationId: org.id, active: true },
+    orderBy: { createdAt: "asc" },
+    take: 3,
+    select: { title: true, durationMin: true },
+  });
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-semibold">Einstellungen</h1>
+      <h1 className="text-2xl font-semibold">Gestaltung und Einstellungen</h1>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Buchungsseite gestalten</h2>
+        <BrandingEditor
+          initial={{
+            brandColor: org.brandColor,
+            logoUrl: org.logoUrl,
+            welcomeTitle: org.welcomeTitle,
+            welcomeText: org.welcomeText,
+            confirmationText: org.confirmationText,
+            fontStyle: org.fontStyle,
+            buttonStyle: org.buttonStyle,
+            pageTheme: org.pageTheme,
+          }}
+          orgName={org.name}
+          sampleEvents={events}
+          disabled={!manager}
+          action={updateBranding}
+        />
+      </section>
+
       <form action={updateOrganization} className="card space-y-4">
+        <h2 className="text-lg font-semibold">Organisation</h2>
         <fieldset disabled={!manager} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -19,14 +50,6 @@ export default async function SettingsPage() {
               <div className="flex items-center gap-1 text-sm text-slate-500">
                 /<input className="input" id="slug" name="slug" defaultValue={org.slug} required />
               </div>
-            </div>
-            <div>
-              <label className="label" htmlFor="brandColor">Markenfarbe</label>
-              <input className="h-10 w-20 rounded border border-slate-300" type="color" id="brandColor" name="brandColor" defaultValue={org.brandColor} />
-            </div>
-            <div>
-              <label className="label" htmlFor="logoUrl">Logo (URL)</label>
-              <input className="input" id="logoUrl" name="logoUrl" type="url" defaultValue={org.logoUrl ?? ""} placeholder="https://…" />
             </div>
           </div>
           {manager && <button className="btn">Speichern</button>}

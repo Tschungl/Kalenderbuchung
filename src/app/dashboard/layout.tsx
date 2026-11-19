@@ -39,7 +39,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <Link href="/dashboard/bookings" className="hover:text-blue-600">Buchungen</Link>
             <Link href="/dashboard/verhandlungen" className="hover:text-blue-600">Verhandlungen</Link>
             <Link href="/dashboard/team" className="hover:text-blue-600">Team</Link>
-            <Link href="/dashboard/settings" className="hover:text-blue-600">Einstellungen</Link>
+            <Link href="/dashboard/integrationen" className="hover:text-blue-600">Integrationen</Link>
+            <Link href="/dashboard/settings" className="hover:text-blue-600">Gestaltung</Link>
             <Link href={`/${org.slug}`} className="hover:text-blue-600" target="_blank">Buchungsseite ↗</Link>
           </nav>
           <form
