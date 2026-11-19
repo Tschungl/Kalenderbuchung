@@ -18,9 +18,26 @@ export type BookingRequest = {
   name: string;
   email: string;
   timeZone: string;
-  guests: string[];
+  /** Weitere Teilnehmer, z.B. Kollegen des Buchenden: nur E-Mail oder mit Name */
+  guests: (string | Guest)[];
   notes?: string;
 };
+
+export type Guest = { email: string; name?: string };
+
+/** Vereinheitlicht die Gästeliste: kleingeschrieben, ohne Dubletten, ohne den Buchenden selbst. */
+export function normalizeGuests(guests: (string | Guest)[], bookerEmail: string): Guest[] {
+  const seen = new Set([bookerEmail.trim().toLowerCase()]);
+  const out: Guest[] = [];
+  for (const g of guests) {
+    const email = (typeof g === "string" ? g : g.email).trim().toLowerCase();
+    const name = typeof g === "string" ? undefined : g.name?.trim() || undefined;
+    if (!email || seen.has(email)) continue;
+    seen.add(email);
+    out.push({ email, name });
+  }
+  return out;
+}
 
 export async function createBooking(
   et: LoadedEventType,
@@ -28,7 +45,8 @@ export async function createBooking(
   opts: { rules?: NegotiationRules; rescheduledFromId?: string } = {},
 ) {
   // Beim Verschieben bleiben die bisherigen Gäste, auch wenn das Limit inzwischen kleiner ist
-  if (!opts.rescheduledFromId && req.guests.length > et.maxGuests) {
+  const guests = normalizeGuests(req.guests, req.email);
+  if (!opts.rescheduledFromId && guests.length > et.maxGuests) {
     throw new BookingError(`Maximal ${et.maxGuests} weitere Gäste erlaubt.`);
   }
   const end = new Date(req.start.getTime() + et.durationMin * 60_000);
@@ -81,7 +99,7 @@ export async function createBooking(
         attendees: {
           create: [
             { name: req.name, email: req.email, timeZone: req.timeZone },
-            ...req.guests.map((g) => ({ name: g, email: g, timeZone: req.timeZone, isGuest: true })),
+            ...guests.map((g) => ({ name: g.name ?? g.email, email: g.email, timeZone: req.timeZone, isGuest: true })),
           ],
         },
       },
@@ -100,7 +118,7 @@ export async function createBooking(
       timeZone: organizer.timeZone,
       attendees: [
         { email: req.email, displayName: req.name },
-        ...req.guests.map((email) => ({ email })),
+        ...guests.map((g) => ({ email: g.email, displayName: g.name })),
         ...coHosts.filter((u) => u.email).map((u) => ({ email: u.email!, displayName: u.name ?? undefined })),
       ],
       withMeet: et.locationType === "GOOGLE_MEET",
@@ -134,12 +152,31 @@ export async function createBooking(
     ].join("\n"),
   ).catch((err) => console.error("[booking] Bestätigungsmail fehlgeschlagen", err));
 
+  // Mitgebuchte Kollegen bekommen zusätzlich zur Kalendereinladung eine eigene Mail
+  const hostName = organizer.name ?? et.organization.name;
+  for (const g of guests) {
+    const gWhen = formatDateTime(req.start, req.timeZone);
+    await sendMail(
+      g.email,
+      `${opts.rescheduledFromId ? "Verschoben" : "Einladung"}: ${et.title} am ${gWhen}`,
+      [
+        `Hallo${g.name ? ` ${g.name}` : ""},`,
+        ``,
+        `${req.name} hat dich zum Termin "${et.title}" mit ${hostName} ${opts.rescheduledFromId ? "eingeladen. Der Termin wurde verschoben." : "eingeladen."}`,
+        `Wann: ${gWhen}`,
+        booking.meetingUrl ? `Video: ${booking.meetingUrl}` : et.locationValue ? `Ort: ${et.locationValue}` : "",
+        ``,
+        `Die Einladung für deinen Kalender kommt in einer separaten Mail. Verschieben oder absagen kann ${req.name}.`,
+      ].join("\n"),
+    ).catch((err) => console.error("[booking] Gast-Mail fehlgeschlagen", err));
+  }
+
   await emitWebhook(et.organizationId, "booking.created", {
     ...bookingPayload({
       ...booking,
       attendees: [
         { name: req.name, email: req.email, isGuest: false },
-        ...req.guests.map((g) => ({ name: g, email: g, isGuest: true })),
+        ...guests.map((g) => ({ name: g.name ?? g.email, email: g.email, isGuest: true })),
       ],
     }),
     eventTypeSlug: et.slug,
@@ -184,7 +221,9 @@ export async function rescheduleBooking(manageToken: string, newStart: Date) {
       name: main.name,
       email: main.email,
       timeZone: main.timeZone,
-      guests: old.attendees.filter((a) => a.isGuest).map((a) => a.email),
+      guests: old.attendees
+        .filter((a) => a.isGuest)
+        .map((a) => ({ email: a.email, name: a.name !== a.email ? a.name : undefined })),
       notes: old.notes ?? undefined,
     },
     { rescheduledFromId: old.id },
