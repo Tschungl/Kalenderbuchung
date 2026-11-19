@@ -37,7 +37,16 @@ const CreateBody = z.object({
   name: z.string().trim().min(1).max(120),
   email: z.string().trim().email(),
   timeZone: z.string().min(1).default("Europe/Berlin"),
-  guests: z.array(z.string().trim().email()).max(20).default([]),
+  // Gäste als E-Mail oder als { name, email }
+  guests: z
+    .array(
+      z.union([
+        z.string().trim().email(),
+        z.object({ email: z.string().trim().email(), name: z.string().trim().max(120).optional() }),
+      ]),
+    )
+    .max(20)
+    .default([]),
   notes: z.string().max(2000).optional(),
 });
 

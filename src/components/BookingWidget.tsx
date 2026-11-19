@@ -36,6 +36,7 @@ export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, 
   const [done, setDone] = useState<{ meetingUrl: string | null; start: string; manageToken?: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [negotiating, setNegotiating] = useState(false);
+  const [guests, setGuests] = useState<{ name: string; email: string }[]>([]);
 
   useEffect(() => {
     const from = weekStart;
@@ -65,7 +66,12 @@ export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, 
       <div className="space-y-3">
         <h2 className="text-xl font-semibold">✅ Termin {rescheduleToken ? "verschoben" : "bestätigt"}</h2>
         <p>{longFmt.format(new Date(done.start))}</p>
-        <p className="text-sm text-slate-600">Eine Kalendereinladung ist unterwegs.</p>
+        <p className="text-sm text-slate-600">
+          Eine Kalendereinladung ist unterwegs
+          {guests.some((g) => g.email.trim())
+            ? `, auch an ${guests.filter((g) => g.email.trim()).map((g) => g.name.trim() || g.email.trim()).join(", ")}.`
+            : "."}
+        </p>
         {confirmationText && <p className="whitespace-pre-line text-sm">{confirmationText}</p>}
         {done.meetingUrl && <a href={done.meetingUrl} className="text-sm text-blue-600 underline">{done.meetingUrl}</a>}
         {rescheduleToken && done.manageToken && (
@@ -128,7 +134,9 @@ export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, 
               name: f.get("name"),
               email: f.get("email"),
               notes: f.get("notes") || undefined,
-              guests: String(f.get("guests") ?? "").split(/[,;\s]+/).filter(Boolean),
+              guests: guests
+                .filter((g) => g.email.trim())
+                .map((g) => ({ email: g.email.trim(), name: g.name.trim() || undefined })),
               timeZone,
             }),
           });
@@ -159,9 +167,49 @@ export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, 
           <input className="input" id="email" name="email" type="email" required />
         </div>
         {maxGuests > 0 && (
-          <div>
-            <label className="label" htmlFor="guests">Weitere Teilnehmer (E-Mails, bis zu {maxGuests})</label>
-            <input className="input" id="guests" name="guests" placeholder="anna@firma.de, ben@firma.de" />
+          <div className="space-y-2">
+            {guests.length > 0 && <p className="label">Kollegen einladen</p>}
+            {guests.map((g, i) => (
+              <div key={i} className="flex gap-2">
+                <input
+                  className="input flex-1"
+                  aria-label={`Name Kollege ${i + 1}`}
+                  placeholder="Name (optional)"
+                  value={g.name}
+                  onChange={(e) => setGuests(guests.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
+                />
+                <input
+                  className="input flex-1"
+                  type="email"
+                  required
+                  aria-label={`E-Mail Kollege ${i + 1}`}
+                  placeholder="E-Mail"
+                  value={g.email}
+                  onChange={(e) => setGuests(guests.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))}
+                />
+                <button
+                  type="button"
+                  className="px-2 text-slate-400 hover:text-red-600"
+                  aria-label={`Kollege ${i + 1} entfernen`}
+                  onClick={() => setGuests(guests.filter((_, j) => j !== i))}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+            {guests.length < maxGuests && (
+              <button
+                type="button"
+                className="text-sm font-medium hover:underline"
+                style={{ color: brandColor }}
+                onClick={() => setGuests([...guests, { name: "", email: "" }])}
+              >
+                + {guests.length ? "Weitere Person" : "Kollegen einladen"}
+              </button>
+            )}
+            {guests.length > 0 && (
+              <p className="text-xs text-slate-500">Eingeladene Personen bekommen eine Kalendereinladung und eine E-Mail mit allen Infos.</p>
+            )}
           </div>
         )}
         <div>
