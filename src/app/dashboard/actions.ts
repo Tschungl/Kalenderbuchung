@@ -8,6 +8,7 @@ import { cancelBooking } from "@/lib/booking";
 import { slugify } from "@/lib/org";
 import { canManage, requireManager, requireMember } from "@/lib/session";
 import type { WeeklyHours } from "@/lib/availability";
+import { NegotiationRulesSchema } from "@/lib/negotiation/rules";
 
 const int = (min: number, max: number) => z.coerce.number().int().min(min).max(max);
 
@@ -41,7 +42,17 @@ function parseEventTypeForm(formData: FormData) {
       },
     ]),
   );
-  return { data: { ...data, slug: slugify(data.slug || data.title) }, hostIds, hostSettings };
+  const negotiation = NegotiationRulesSchema.parse({
+    enabled: formData.get("neg_enabled") === "on",
+    extendedStart: formData.get("neg_extendedStart") || undefined,
+    extendedEnd: formData.get("neg_extendedEnd") || undefined,
+    allowWeekends: formData.get("neg_allowWeekends") === "on",
+    minNoticeMin: Number(formData.get("neg_minNoticeMin") ?? 120),
+    autoBookExtended: formData.get("neg_autoBook") === "on",
+    maxTurns: Number(formData.get("neg_maxTurns") ?? 12),
+    instructions: String(formData.get("neg_instructions") ?? "").slice(0, 2000),
+  });
+  return { data: { ...data, negotiation, slug: slugify(data.slug || data.title) }, hostIds, hostSettings };
 }
 
 async function validHostIds(orgId: string, hostIds: string[], fallback: string) {

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { computeSlots, type DateOverride, type HostAvailabilityInput, type Slot, type WeeklyHours } from "@/lib/availability";
 import { getGoogleBusy } from "@/lib/google";
+import { extendWeekly, type NegotiationRules } from "@/lib/negotiation/rules";
 
 export async function loadEventType(orgSlug: string, eventSlug: string) {
   return db.eventType.findFirst({
@@ -12,10 +13,30 @@ export async function loadEventType(orgSlug: string, eventSlug: string) {
   });
 }
 
+export async function loadEventTypeById(id: string) {
+  return db.eventType.findFirst({
+    where: { id, active: true },
+    include: {
+      organization: true,
+      hosts: { include: { user: { include: { schedule: true } } } },
+    },
+  });
+}
+
 export type LoadedEventType = NonNullable<Awaited<ReturnType<typeof loadEventType>>>;
 
 /** Sammelt Arbeitszeiten + Belegt-Zeiten (Google + eigene Buchungen) und berechnet Slots. */
-export async function getSlotsForEventType(et: LoadedEventType, from: Date, to: Date): Promise<Slot[]> {
+/**
+ * Mit `rules` werden die erweiterten Verhandlungszeiten berücksichtigt
+ * (längere Tage, ggf. Wochenende, kürzerer Vorlauf).
+ */
+export async function getSlotsForEventType(
+  et: LoadedEventType,
+  from: Date,
+  to: Date,
+  opts: { rules?: NegotiationRules } = {},
+): Promise<Slot[]> {
+  const rules = opts.rules?.enabled ? opts.rules : undefined;
   const hosts: HostAvailabilityInput[] = await Promise.all(
     et.hosts.map(async (h) => {
       const schedule = h.user.schedule;
@@ -40,7 +61,11 @@ export async function getSlotsForEventType(et: LoadedEventType, from: Date, to: 
         id: h.userId,
         required: h.required,
         timeZone: schedule?.timeZone ?? h.user.timeZone,
-        weekly: unreachable ? {} : ((schedule?.weekly ?? {}) as WeeklyHours),
+        weekly: unreachable
+          ? {}
+          : rules
+            ? extendWeekly((schedule?.weekly ?? {}) as WeeklyHours, rules)
+            : ((schedule?.weekly ?? {}) as WeeklyHours),
         overrides: (schedule?.overrides ?? []) as DateOverride[],
         busy: [...(googleBusy ?? []), ...bookings.map((b) => ({ start: b.startTime, end: b.endTime }))],
       };
@@ -53,7 +78,7 @@ export async function getSlotsForEventType(et: LoadedEventType, from: Date, to: 
     durationMin: et.durationMin,
     bufferBeforeMin: et.bufferBeforeMin,
     bufferAfterMin: et.bufferAfterMin,
-    minNoticeMin: et.minNoticeMin,
+    minNoticeMin: rules ? Math.min(et.minNoticeMin, rules.minNoticeMin) : et.minNoticeMin,
     maxDaysAhead: et.maxDaysAhead,
     stepMin: et.slotStepMin,
     rangeStart: from,

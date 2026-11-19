@@ -1,9 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { NegotiationChat } from "./NegotiationChat";
 
 type Slot = { start: string; end: string };
-type Props = { org: string; event: string; durationMin: number; maxGuests: number; brandColor: string };
+type Props = {
+  org: string;
+  event: string;
+  durationMin: number;
+  maxGuests: number;
+  brandColor: string;
+  negotiationEnabled?: boolean;
+};
 
 const DAY_MS = 24 * 3600_000;
 
@@ -15,7 +23,7 @@ function startOfWeek(d: Date) {
   return x;
 }
 
-export function BookingWidget({ org, event, durationMin, maxGuests, brandColor }: Props) {
+export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, negotiationEnabled }: Props) {
   const timeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [slots, setSlots] = useState<Slot[] | null>(null);
@@ -23,6 +31,7 @@ export function BookingWidget({ org, event, durationMin, maxGuests, brandColor }
   const [selected, setSelected] = useState<Slot | null>(null);
   const [done, setDone] = useState<{ meetingUrl: string | null; start: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [negotiating, setNegotiating] = useState(false);
 
   useEffect(() => {
     const from = weekStart;
@@ -42,6 +51,10 @@ export function BookingWidget({ org, event, durationMin, maxGuests, brandColor }
   const days = Array.from({ length: 7 }, (_, i) => new Date(weekStart.getTime() + i * DAY_MS));
   const byDay = (day: Date) =>
     (slots ?? []).filter((s) => new Date(s.start).toDateString() === day.toDateString());
+
+  if (negotiating) {
+    return <NegotiationChat mode="new" org={org} event={event} brandColor={brandColor} onBack={() => setNegotiating(false)} />;
+  }
 
   if (done) {
     return (
@@ -160,6 +173,14 @@ export function BookingWidget({ org, event, durationMin, maxGuests, brandColor }
       )}
       {slots && slots.length === 0 && (
         <p className="text-sm text-slate-500">In dieser Woche ist nichts frei. Schau in der nächsten Woche nach.</p>
+      )}
+      {negotiationEnabled && slots && (
+        <div className="rounded-lg border border-dashed border-slate-300 p-4 text-sm">
+          <span className="text-slate-600">Keine passende Zeit dabei? </span>
+          <button type="button" className="font-medium underline" style={{ color: brandColor }} onClick={() => setNegotiating(true)}>
+            Sag uns, wann es dir passt
+          </button>
+        </div>
       )}
     </div>
   );

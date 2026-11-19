@@ -1,4 +1,5 @@
 import type { EventType } from "@prisma/client";
+import { parseRules } from "@/lib/negotiation/rules";
 
 type Member = { id: string; name: string | null; email: string | null };
 
@@ -37,6 +38,7 @@ export function EventTypeForm({
   selectedHosts: { userId: string; required: boolean; weight: number }[];
 }) {
   const et = eventType;
+  const rules = parseRules(et?.negotiation);
   return (
     <form action={action} className="card space-y-6">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -117,6 +119,44 @@ export function EventTypeForm({
               </div>
             );
           })}
+        </div>
+      </fieldset>
+      <fieldset className="space-y-4 rounded-lg border border-slate-200 p-4">
+        <legend className="px-1 text-sm font-semibold">KI-Terminverhandlung</legend>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="neg_enabled" defaultChecked={rules.enabled} />
+          Wenn keine Zeit passt, darf der Assistent Alternativen aushandeln
+        </label>
+        <div className="grid gap-4 sm:grid-cols-4">
+          <div>
+            <label className="label" htmlFor="neg_extendedStart">Frühester Beginn</label>
+            <input className="input" type="time" id="neg_extendedStart" name="neg_extendedStart" defaultValue={rules.extendedStart} />
+          </div>
+          <div>
+            <label className="label" htmlFor="neg_extendedEnd">Spätestes Ende</label>
+            <input className="input" type="time" id="neg_extendedEnd" name="neg_extendedEnd" defaultValue={rules.extendedEnd} />
+          </div>
+          <div>
+            <label className="label" htmlFor="neg_minNoticeMin">Mindestvorlauf (Min.)</label>
+            <input className="input" type="number" min={0} id="neg_minNoticeMin" name="neg_minNoticeMin" defaultValue={rules.minNoticeMin} />
+          </div>
+          <div>
+            <label className="label" htmlFor="neg_maxTurns">Max. Nachrichten</label>
+            <input className="input" type="number" min={1} max={50} id="neg_maxTurns" name="neg_maxTurns" defaultValue={rules.maxTurns} />
+          </div>
+        </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="neg_autoBook" defaultChecked={rules.autoBookExtended} />
+          Erweiterte Werktagszeiten ohne Rückfrage buchen (sonst Freigabe per E-Mail)
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="neg_allowWeekends" defaultChecked={rules.allowWeekends} />
+          Wochenende anbieten (immer mit Freigabe)
+        </label>
+        <div>
+          <label className="label" htmlFor="neg_instructions">Hinweise für den Assistenten (optional)</label>
+          <textarea className="input" rows={2} id="neg_instructions" name="neg_instructions" defaultValue={rules.instructions}
+            placeholder="z.B. Freitags nachmittags nur im Notfall anbieten." />
         </div>
       </fieldset>
       <label className="flex items-center gap-2 text-sm">
