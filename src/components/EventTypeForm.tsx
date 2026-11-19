@@ -10,10 +10,12 @@ const MODES = [
 ] as const;
 
 const LOCATIONS = [
-  ["GOOGLE_MEET", "Videokonferenz (Google Meet oder Teams, Link automatisch)"],
+  ["GOOGLE_MEET", "Google Meet (bei Outlook-Gastgebern Teams)"],
+  ["MS_TEAMS", "Microsoft Teams"],
+  ["ZOOM", "Zoom"],
   ["PHONE", "Telefon"],
   ["IN_PERSON", "Vor Ort"],
-  ["CUSTOM_LINK", "Eigener Link (z.B. Zoom)"],
+  ["CUSTOM_LINK", "Eigener Link"],
 ] as const;
 
 function NumberField({ name, label, value, hint }: { name: string; label: string; value: number; hint?: string }) {
@@ -83,6 +85,10 @@ export function EventTypeForm({
         <div>
           <label className="label" htmlFor="locationValue">Ortsangabe (Adresse, Telefon oder Link)</label>
           <input className="input" id="locationValue" name="locationValue" defaultValue={et?.locationValue ?? ""} />
+          <p className="mt-1 text-xs text-slate-500">
+            Bei Zoom und Teams wird der Link automatisch erzeugt, wenn der Gastgeber Zoom bzw. Microsoft 365 verbunden hat.
+            Sonst wird der hier eingetragene feste Link verwendet.
+          </p>
         </div>
       </div>
       <fieldset>

@@ -4,7 +4,9 @@ import { canManage, requireMember } from "@/lib/session";
 import { WEBHOOK_EVENTS, WEBHOOK_EVENT_LABEL } from "@/lib/integrations/webhooks";
 import { ApiKeyForm } from "./ApiKeyForm";
 import { CopyField } from "./CopyField";
-import { createWebhook, deleteApiKey, deleteWebhook, saveReminders, testWebhook, toggleWebhook } from "./actions";
+import { PROVIDER_LABEL, providerFor } from "@/lib/calendar";
+import { zoomEnabled } from "@/lib/zoom";
+import { createWebhook, deleteApiKey, disconnectZoomAction, deleteWebhook, saveReminders, testWebhook, toggleWebhook } from "./actions";
 
 const REMINDER_CHOICES = [10080, 2880, 1440, 240, 120, 60, 30, 15];
 function offsetLabel(min: number) {
@@ -14,8 +16,13 @@ function offsetLabel(min: number) {
 }
 const dt = new Intl.DateTimeFormat("de-DE", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Berlin" });
 
-export default async function IntegrationsPage() {
-  const { org, membership } = await requireMember();
+export default async function IntegrationsPage({ searchParams }: { searchParams: Promise<{ zoom?: string }> }) {
+  const { org, membership, user } = await requireMember();
+  const { zoom: zoomStatus } = await searchParams;
+  const [zoomConn, calendarProvider] = await Promise.all([
+    db.zoomConnection.findUnique({ where: { userId: user.id }, select: { email: true, createdAt: true } }),
+    providerFor(user.id),
+  ]);
   const manager = canManage(membership.role);
   const [eventTypes, webhooks, apiKeys] = await Promise.all([
     db.eventType.findMany({ where: { organizationId: org.id, active: true }, orderBy: { createdAt: "asc" } }),
@@ -37,6 +44,56 @@ export default async function IntegrationsPage() {
   return (
     <div className="space-y-8">
       <h1 className="text-2xl font-semibold">Integrationen</h1>
+
+      <section className="card space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold">Videokonferenz</h2>
+          <p className="text-sm text-slate-600">
+            Pro Meeting-Typ wählst du unter „Ort“ Google Meet, Microsoft Teams oder Zoom. Der Link wird bei jeder Buchung
+            automatisch erzeugt, wenn dein Konto verbunden ist.
+          </p>
+        </div>
+        {zoomStatus === "verbunden" && <p className="text-sm text-green-700">Zoom ist jetzt verbunden.</p>}
+        {zoomStatus === "fehler" && <p className="text-sm text-red-600">Zoom konnte nicht verbunden werden. Bitte erneut versuchen.</p>}
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-lg border border-slate-200 p-4">
+            <p className="font-medium">Google Meet</p>
+            <p className="mt-1 text-sm text-slate-600">
+              {calendarProvider === "google" ? "Aktiv über deinen Google Kalender." : "Nur für Gastgeber mit Google Kalender."}
+            </p>
+          </div>
+          <div className="rounded-lg border border-slate-200 p-4">
+            <p className="font-medium">Microsoft Teams</p>
+            <p className="mt-1 text-sm text-slate-600">
+              {calendarProvider === "microsoft"
+                ? "Aktiv über dein Microsoft-365-Konto."
+                : "Automatisch nur mit Microsoft-365-Anmeldung. Sonst wird der feste Teams-Link aus dem Meeting-Typ verwendet."}
+            </p>
+          </div>
+          <div className="rounded-lg border border-slate-200 p-4">
+            <p className="font-medium">Zoom</p>
+            {zoomConn ? (
+              <div className="mt-1 space-y-2 text-sm text-slate-600">
+                <p>Verbunden{zoomConn.email ? ` als ${zoomConn.email}` : ""}.</p>
+                <form action={disconnectZoomAction}>
+                  <button className="btn-secondary text-sm">Trennen</button>
+                </form>
+              </div>
+            ) : zoomEnabled() ? (
+              <div className="mt-1 space-y-2 text-sm text-slate-600">
+                <p>Nicht verbunden. Ohne Verbindung wird der feste Zoom-Link aus dem Meeting-Typ verwendet.</p>
+                {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- API-Route, braucht vollen Seitenwechsel */}
+                <a className="btn inline-block text-sm" href="/api/integrations/zoom/connect">Zoom verbinden</a>
+              </div>
+            ) : (
+              <p className="mt-1 text-sm text-slate-600">
+                Auf diesem Server nicht eingerichtet (ZOOM_CLIENT_ID fehlt). Ein fester Zoom-Link im Meeting-Typ funktioniert trotzdem.
+              </p>
+            )}
+          </div>
+        </div>
+        <p className="text-xs text-slate-500">Dein Kalender: {PROVIDER_LABEL[calendarProvider]}</p>
+      </section>
 
       <section className="card space-y-4">
         <div>

@@ -1,15 +1,9 @@
+import { LOCATION_LABEL } from "@/lib/conference";
 import { BookingWidget } from "@/components/BookingWidget";
 import { BrandHeader } from "@/components/BrandedPage";
 import type { LoadedEventType } from "@/lib/slots";
 import { negotiationAvailable } from "@/lib/negotiation/agent";
 import { parseRules } from "@/lib/negotiation/rules";
-
-const LOCATION_LABEL = {
-  GOOGLE_MEET: "Videokonferenz",
-  PHONE: "Telefon",
-  IN_PERSON: "Vor Ort",
-  CUSTOM_LINK: "Online",
-} as const;
 
 /** Inhalt einer Meeting-Typ-Seite; genutzt von der Buchungsseite und der Einbettung. */
 export function EventBookingView({ et, embed, homeHref }: { et: NonNullable<LoadedEventType>; embed?: boolean; homeHref?: string }) {

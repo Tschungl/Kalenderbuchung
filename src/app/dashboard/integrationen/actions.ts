@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireManager } from "@/lib/session";
+import { requireManager, requireMember } from "@/lib/session";
+import { disconnectZoom } from "@/lib/zoom";
 import { generateApiKey } from "@/lib/integrations/apiKeys";
 import { WEBHOOK_EVENTS, deliverWebhook, isAllowedWebhookUrl, newWebhookSecret } from "@/lib/integrations/webhooks";
 
@@ -69,5 +70,11 @@ export async function saveReminders(formData: FormData) {
     where: { id: org.id },
     data: { reminderOffsetsMin: [...new Set(offsets)].sort((a, b) => b - a) },
   });
+  revalidatePath(PATH);
+}
+
+export async function disconnectZoomAction() {
+  const { user } = await requireMember();
+  await disconnectZoom(user.id);
   revalidatePath(PATH);
 }
