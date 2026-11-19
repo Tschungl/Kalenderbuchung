@@ -1,0 +1,202 @@
+// Datenmodell der Kalenderbuchungs-App.
+// Mandantenfähig: alles Fachliche hängt an einer Organisation.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Mandanten ----------
+
+model Organization {
+  id           String       @id @default(cuid())
+  name         String
+  slug         String       @unique
+  // Branding für Buchungsseiten (Phase 4 erweitert das)
+  brandColor   String       @default("#2563eb")
+  logoUrl      String?
+  createdAt    DateTime     @default(now())
+  memberships  Membership[]
+  eventTypes   EventType[]
+  bookings     Booking[]
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model Membership {
+  id             String       @id @default(cuid())
+  role           Role         @default(MEMBER)
+  userId         String
+  organizationId String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([userId, organizationId])
+}
+
+// ---------- Auth.js (Google-Login, liefert auch die Kalender-Tokens) ----------
+
+model User {
+  id            String          @id @default(cuid())
+  name          String?
+  email         String?         @unique
+  emailVerified DateTime?
+  image         String?
+  timeZone      String          @default("Europe/Berlin")
+  // Kalender, in den neue Buchungen eingetragen werden
+  targetCalendarId String       @default("primary")
+  accounts      Account[]
+  sessions      Session[]
+  memberships   Membership[]
+  schedule      Schedule?
+  hostOf        EventTypeHost[]
+  bookingsHosted Booking[]      @relation("BookingHost")
+  createdAt     DateTime        @default(now())
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+// ---------- Verfügbarkeit ----------
+
+model Schedule {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  timeZone  String   @default("Europe/Berlin")
+  // Wochenzeiten als JSON: { "1": [{"start":"09:00","end":"17:00"}], ... } (1 = Montag, 7 = Sonntag)
+  weekly    Json
+  // Ausnahmen/Urlaub als JSON: [{ "date": "2026-12-24", "intervals": [] }]
+  overrides Json     @default("[]")
+  updatedAt DateTime @updatedAt
+}
+
+// ---------- Meeting-Typen ----------
+
+enum SchedulingMode {
+  SINGLE       // ein Gastgeber
+  COLLECTIVE   // alle Gastgeber müssen frei sein
+  ROUND_ROBIN  // einer aus dem Pool, reihum
+}
+
+enum LocationType {
+  GOOGLE_MEET
+  PHONE
+  IN_PERSON
+  CUSTOM_LINK
+}
+
+model EventType {
+  id              String          @id @default(cuid())
+  organizationId  String
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  slug            String
+  title           String
+  description     String?         @db.Text
+  durationMin     Int             @default(30)
+  bufferBeforeMin Int             @default(0)
+  bufferAfterMin  Int             @default(0)
+  minNoticeMin    Int             @default(240)
+  maxDaysAhead    Int             @default(60)
+  slotStepMin     Int             @default(15)
+  mode            SchedulingMode  @default(SINGLE)
+  locationType    LocationType    @default(GOOGLE_MEET)
+  locationValue   String?
+  maxGuests       Int             @default(0)
+  active          Boolean         @default(true)
+  hosts           EventTypeHost[]
+  bookings        Booking[]
+  createdAt       DateTime        @default(now())
+
+  @@unique([organizationId, slug])
+}
+
+model EventTypeHost {
+  id          String    @id @default(cuid())
+  eventTypeId String
+  userId      String
+  required    Boolean   @default(true)
+  weight      Int       @default(1)
+  eventType   EventType @relation(fields: [eventTypeId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventTypeId, userId])
+}
+
+// ---------- Buchungen ----------
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+model Booking {
+  id             String        @id @default(cuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventTypeId    String
+  eventType      EventType     @relation(fields: [eventTypeId], references: [id], onDelete: Cascade)
+  // Hauptgastgeber (bei Kollektiv: Organisator des Google-Events)
+  hostId         String
+  host           User          @relation("BookingHost", fields: [hostId], references: [id])
+  startTime      DateTime
+  endTime        DateTime
+  status         BookingStatus @default(CONFIRMED)
+  googleEventId  String?
+  meetingUrl     String?
+  // Geheimer Token für Absage/Verschiebung per Link
+  manageToken    String        @unique @default(cuid())
+  notes          String?       @db.Text
+  attendees      Attendee[]
+  createdAt      DateTime      @default(now())
+
+  @@index([hostId, startTime])
+}
+
+model Attendee {
+  id        String  @id @default(cuid())
+  bookingId String
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  name      String
+  email     String
+  timeZone  String  @default("Europe/Berlin")
+  isGuest   Boolean @default(false)
+}
