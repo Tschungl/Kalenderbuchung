@@ -19,3 +19,59 @@ body {
 .card {
   @apply rounded-xl border border-slate-200 bg-white p-6 shadow-sm;
 }
+
+/* ---------- Gestaltete Buchungsseiten (Farben kommen als CSS-Variablen aus der Organisation) ---------- */
+.branded .brand-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--brand);
+  color: #fff;
+  border-radius: var(--brand-radius);
+  font-weight: 500;
+}
+.branded .brand-btn:disabled {
+  opacity: 0.5;
+}
+.branded .slot-btn {
+  border: 1px solid var(--brand);
+  color: var(--brand);
+  border-radius: var(--brand-radius);
+  transition: background-color 0.1s;
+}
+.branded .slot-btn:hover {
+  background-color: var(--brand);
+  color: #fff;
+}
+.branded .input {
+  border-radius: min(var(--brand-radius), 0.5rem);
+}
+.brand-dark .card {
+  background-color: #1e293b;
+  border-color: #334155;
+}
+.brand-dark .input {
+  background-color: #0f172a;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+.brand-dark .label,
+.brand-dark .text-slate-700 {
+  color: #cbd5e1;
+}
+.brand-dark .text-slate-500,
+.brand-dark .text-slate-600 {
+  color: #94a3b8;
+}
+.brand-dark .bg-slate-50,
+.brand-dark .bg-white {
+  background-color: #0f172a;
+}
+.brand-dark .border-slate-200,
+.brand-dark .border-slate-100,
+.brand-dark .border-slate-300 {
+  border-color: #334155;
+}
+.brand-dark .slot-btn {
+  color: #e2e8f0;
+}

@@ -5,6 +5,7 @@ import { cancelGoogleEvent, createGoogleEvent } from "@/lib/google";
 import { formatDateTime, sendMail } from "@/lib/mail";
 import { getSlotsForEventType, type LoadedEventType } from "@/lib/slots";
 import type { NegotiationRules } from "@/lib/negotiation/rules";
+import { bookingPayload, emitWebhook } from "@/lib/integrations/webhooks";
 
 export class BookingError extends Error {
   constructor(message: string, public status = 400) {
@@ -128,6 +129,17 @@ export async function createBooking(
     ].join("\n"),
   ).catch((err) => console.error("[booking] Bestätigungsmail fehlgeschlagen", err));
 
+  await emitWebhook(et.organizationId, "booking.created", {
+    ...bookingPayload({
+      ...booking,
+      attendees: [
+        { name: req.name, email: req.email, isGuest: false },
+        ...req.guests.map((g) => ({ name: g, email: g, isGuest: true })),
+      ],
+    }),
+    eventTypeSlug: et.slug,
+  });
+
   return booking;
 }
 
@@ -140,7 +152,9 @@ export async function cancelBooking(manageToken: string) {
       console.error("[booking] Google-Event konnte nicht gelöscht werden", err),
     );
   }
-  return db.booking.update({ where: { id: booking.id }, data: { status: "CANCELLED" } });
+  const cancelled = await db.booking.update({ where: { id: booking.id }, data: { status: "CANCELLED" } });
+  await emitWebhook(booking.organizationId, "booking.cancelled", bookingPayload({ ...cancelled, attendees: booking.attendees }));
+  return cancelled;
 }
 
 export function appUrl() {

@@ -6,6 +6,7 @@
  * des Meeting-Typs. Kundentexte können die Regeln deshalb nicht aushebeln.
  */
 import Anthropic from "@anthropic-ai/sdk";
+import { emitWebhook } from "@/lib/integrations/webhooks";
 import { randomUUID } from "crypto";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -230,6 +231,12 @@ async function runTool(ctx: Ctx, name: string, input: Record<string, unknown>): 
           ).catch((e) => console.error("[negotiation] Freigabe-Mail fehlgeschlagen", e)),
         ),
       );
+      await emitWebhook(ctx.et.organizationId, "negotiation.approval_requested", {
+        eventTypeId: ctx.et.id,
+        start,
+        reason,
+        customer: { name: ctx.customer.name, email: ctx.customer.email },
+      });
       return JSON.stringify({ requested: true, when: label(start, ctx.customer.timeZone) });
     }
 

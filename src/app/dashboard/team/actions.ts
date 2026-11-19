@@ -106,8 +106,6 @@ export async function switchOrganization(orgId: string) {
 const OrgSettings = z.object({
   name: z.string().trim().min(1).max(120),
   slug: z.string().trim().min(2).max(40),
-  brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
-  logoUrl: z.union([z.literal(""), z.string().url().max(500)]),
 });
 
 export async function updateOrganization(formData: FormData) {
@@ -117,7 +115,7 @@ export async function updateOrganization(formData: FormData) {
   if (slug !== org.slug) slug = await uniqueOrgSlug(slug);
   await db.organization.update({
     where: { id: org.id },
-    data: { name: data.name, slug, brandColor: data.brandColor, logoUrl: data.logoUrl || null },
+    data: { name: data.name, slug },
   });
   revalidatePath("/dashboard", "layout");
 }

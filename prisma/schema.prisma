@@ -16,14 +16,28 @@ model Organization {
   id           String       @id @default(cuid())
   name         String
   slug         String       @unique
-  // Branding für Buchungsseiten (Phase 4 erweitert das)
+  // Branding für Buchungsseiten
   brandColor   String       @default("#2563eb")
   logoUrl      String?
+  welcomeTitle String?
+  welcomeText  String?      @db.Text
+  // Nach der Buchung angezeigter Text
+  confirmationText String?  @db.Text
+  // "sans" | "serif" | "rounded"
+  fontStyle    String       @default("sans")
+  // "rounded" | "square" | "pill"
+  buttonStyle  String       @default("rounded")
+  // "light" | "tinted" | "dark"
+  pageTheme    String       @default("light")
+  // Minuten vor Terminbeginn, zu denen Erinnerungen verschickt werden
+  reminderOffsetsMin Int[]  @default([1440, 60])
   createdAt    DateTime     @default(now())
   memberships  Membership[]
   eventTypes   EventType[]
   bookings     Booking[]
   invitations  Invitation[]
+  webhooks     Webhook[]
+  apiKeys      ApiKey[]
 }
 
 enum Role {
@@ -205,9 +219,22 @@ model Booking {
   manageToken    String        @unique @default(cuid())
   notes          String?       @db.Text
   attendees      Attendee[]
+  reminders      ReminderLog[]
   createdAt      DateTime      @default(now())
 
   @@index([hostId, startTime])
+  @@index([status, startTime])
+}
+
+// Verschickte Erinnerungen (verhindert doppelte Mails)
+model ReminderLog {
+  id        String   @id @default(cuid())
+  bookingId String
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  offsetMin Int
+  sentAt    DateTime @default(now())
+
+  @@unique([bookingId, offsetMin])
 }
 
 model Attendee {
@@ -256,4 +283,46 @@ model Negotiation {
   updatedAt      DateTime          @updatedAt
 
   @@index([organizationId, createdAt])
+}
+
+// ---------- Integrationen ----------
+
+model Webhook {
+  id             String            @id @default(cuid())
+  organizationId String
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  url            String
+  // Zum Signieren der Aufrufe (HMAC-SHA256)
+  secret         String
+  // z.B. ["booking.created", "booking.cancelled"]
+  events         String[]
+  active         Boolean           @default(true)
+  deliveries     WebhookDelivery[]
+  createdAt      DateTime          @default(now())
+}
+
+model WebhookDelivery {
+  id         String   @id @default(cuid())
+  webhookId  String
+  webhook    Webhook  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  event      String
+  statusCode Int?
+  error      String?
+  createdAt  DateTime @default(now())
+
+  @@index([webhookId, createdAt])
+}
+
+model ApiKey {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  // Erste Zeichen zum Wiedererkennen, z.B. "kb_ab12cd"
+  prefix         String
+  // SHA-256 des Schlüssels; der Klartext wird nur einmal angezeigt
+  hash           String       @unique
+  createdById    String?
+  lastUsedAt     DateTime?
+  createdAt      DateTime     @default(now())
 }

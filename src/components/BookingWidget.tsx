@@ -11,6 +11,8 @@ type Props = {
   maxGuests: number;
   brandColor: string;
   negotiationEnabled?: boolean;
+  confirmationText?: string | null;
+  embed?: boolean;
 };
 
 const DAY_MS = 24 * 3600_000;
@@ -23,7 +25,7 @@ function startOfWeek(d: Date) {
   return x;
 }
 
-export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, negotiationEnabled }: Props) {
+export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, negotiationEnabled, confirmationText, embed }: Props) {
   const timeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [slots, setSlots] = useState<Slot[] | null>(null);
@@ -62,6 +64,7 @@ export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, 
         <h2 className="text-xl font-semibold">✅ Termin bestätigt</h2>
         <p>{longFmt.format(new Date(done.start))}</p>
         <p className="text-sm text-slate-600">Eine Kalendereinladung ist unterwegs.</p>
+        {confirmationText && <p className="whitespace-pre-line text-sm">{confirmationText}</p>}
         {done.meetingUrl && <a href={done.meetingUrl} className="text-sm text-blue-600 underline">{done.meetingUrl}</a>}
       </div>
     );
@@ -92,7 +95,13 @@ export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, 
           });
           const data = await res.json().catch(() => ({}));
           setSubmitting(false);
-          if (res.ok) setDone({ meetingUrl: data.meetingUrl, start: selected.start });
+          if (res.ok) {
+            setDone({ meetingUrl: data.meetingUrl, start: selected.start });
+            // Einbettende Seite informieren (z.B. für Tracking oder Weiterleitung)
+            if (embed && window.parent !== window) {
+              window.parent.postMessage({ type: "kalender:booked", start: selected.start, event }, "*");
+            }
+          }
           else setError(data.error ?? "Buchung fehlgeschlagen");
         }}
       >
@@ -121,7 +130,7 @@ export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, 
           <textarea className="input" id="notes" name="notes" rows={3} />
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
-        <button className="btn" disabled={submitting} style={{ backgroundColor: brandColor }}>
+        <button className="brand-btn px-4 py-2 text-sm" disabled={submitting}>
           {submitting ? "Wird gebucht…" : "Termin buchen"}
         </button>
       </form>
@@ -155,14 +164,7 @@ export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, 
             <div key={day.toISOString()} className="space-y-2">
               <p className="text-center text-sm font-medium">{dayFmt.format(day)}</p>
               {byDay(day).map((s) => (
-                <button
-                  key={s.start}
-                  className="w-full rounded-lg border px-2 py-1.5 text-sm hover:text-white"
-                  style={{ borderColor: brandColor, color: brandColor }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = brandColor)}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "")}
-                  onClick={() => setSelected(s)}
-                >
+                <button key={s.start} className="slot-btn w-full px-2 py-1.5 text-sm" onClick={() => setSelected(s)}>
                   {timeFmt.format(new Date(s.start))}
                 </button>
               ))}

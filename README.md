@@ -36,6 +36,29 @@ sucht Alternativen und bucht oder fragt beim Gastgeber nach.
 - Dashboard „Verhandlungen“ mit Status und vollem Verlauf
 - Benötigt `ANTHROPIC_API_KEY`; ohne Schlüssel ist die Funktion ausgeblendet
 
+## Phase 4 (Gestaltung und Ausbau)
+
+- Gestaltung der Buchungsseite mit Live-Vorschau: Farbe, Logo, Überschrift, Begrüßungstext, Text nach der Buchung, Schrift, Button-Form, Hintergrund (hell, getönt, dunkel)
+- Erinnerungsmails an Kunden, Gäste und Gastgeber (pro Organisation wählbar, z.B. 1 Tag und 1 Stunde vorher)
+- Einbettung auf Firmenwebseiten: Skript mit automatischer Höhe, Popup-Button oder reiner iframe (Dashboard „Integrationen“)
+- Webhooks für „Termin gebucht“, „Termin abgesagt“, „Freigabe angefragt“, signiert mit HMAC-SHA256, mit Testknopf und Protokoll
+- REST-API mit API-Schlüsseln, siehe unten
+
+### REST-API
+
+Schlüssel unter Dashboard → Integrationen erzeugen, dann mit `Authorization: Bearer kb_…` aufrufen.
+
+| Methode | Pfad | Zweck |
+| --- | --- | --- |
+| GET | `/api/v1/event-types` | Meeting-Typen mit Gastgebern |
+| GET | `/api/v1/slots?eventTypeId=…&from=ISO&to=ISO` | Freie Zeiten (max. 6 Wochen) |
+| GET | `/api/v1/bookings?from=&to=&status=&limit=` | Buchungen |
+| POST | `/api/v1/bookings` | Buchen (`eventTypeId`, `start`, `name`, `email`, optional `guests`, `notes`, `timeZone`) |
+| GET | `/api/v1/bookings/:id` | Eine Buchung |
+| DELETE | `/api/v1/bookings/:id` | Absagen, Google-Event wird mitgelöscht |
+
+Webhook-Signatur prüfen: Header `X-Kalender-Signature: t=<unix>,v1=<hex>`, wobei `v1 = HMAC-SHA256(geheimnis, "<t>.<body>")`.
+
 ## Lokal starten
 
 ```bash
@@ -80,8 +103,13 @@ muss die App von Google verifiziert werden (Kalender-Bereiche gelten als „sens
 | `src/lib/google.ts` | Google Calendar: freeBusy, Events anlegen/löschen |
 | `src/app/dashboard` | Verwaltung: Meeting-Typen, Verfügbarkeit, Buchungen |
 | `src/app/[org]` | Öffentliche Buchungsseiten |
-| `src/app/api` | `GET /api/slots`, `POST /api/bookings`, Absage |
+| `src/app/api` | `GET /api/slots`, `POST /api/bookings`, Absage, `api/v1` (öffentliche API) |
+| `src/lib/integrations` | Webhooks, API-Schlüssel |
+| `src/lib/reminders.ts` | Erinnerungsmails (Takt startet in `src/instrumentation.ts`) |
+| `public/embed.js` | Einbettungsskript für fremde Webseiten |
 
-## Nächste Phasen
+## Nächste Schritte
 
-4. Gestaltung und Ausbau: Branding-Editor, eigene Domains, Erinnerungen, Webhooks, Einbettung, Outlook
+- Eigene Domains pro Organisation (z.B. termine.firma.de, braucht automatische Zertifikate im Reverse Proxy)
+- Outlook/Microsoft 365 als zweiter Kalender (Microsoft-Graph-App in Azure nötig)
+- Verschieben von Terminen per Link, Zahlungen, Statistiken
