@@ -9,6 +9,7 @@ Mandantenfähig: Jede Firma ist eine eigene Organisation mit eigenen Mitgliedern
 - Öffentliche Buchungsseite `/<organisation>/<meeting-typ>` mit Wochenansicht in der Zeitzone des Kunden
 - Vor dem Buchen wird der Slot erneut geprüft, dann landet der Termin im Kalender des Gastgebers: Google mit Meet-Link oder Outlook mit Teams-Link. Die Einladungen verschickt der Kalender.
 - Bestätigungsmail mit Link zum Verschieben oder Absagen; Erinnerungsmails vorher (Zeitpunkte wählbar)
+- Buchende können Kollegen mit einladen (Name optional, Anzahl pro Meeting-Typ einstellbar). Diese bekommen die Kalendereinladung, eine eigene Mail und die Erinnerungen.
 - Kein Kalender erreichbar = keine Slots, damit es keine Doppelbuchungen gibt
 
 **Meeting-Typen und Teams**
@@ -123,7 +124,7 @@ Schlüssel unter Dashboard → Integrationen erzeugen, dann mit `Authorization: 
 | GET | `/api/v1/event-types` | Meeting-Typen mit Gastgebern |
 | GET | `/api/v1/slots?eventTypeId=…&from=ISO&to=ISO` | Freie Zeiten (max. 6 Wochen) |
 | GET | `/api/v1/bookings?from=&to=&status=&limit=` | Buchungen |
-| POST | `/api/v1/bookings` | Buchen (`eventTypeId`, `start`, `name`, `email`, optional `guests`, `notes`, `timeZone`) |
+| POST | `/api/v1/bookings` | Buchen (`eventTypeId`, `start`, `name`, `email`, optional `guests` als E-Mails oder `{ name, email }`, `notes`, `timeZone`) |
 | GET | `/api/v1/bookings/:id` | Eine Buchung |
 | POST | `/api/v1/bookings/:id/reschedule` | Verschieben (`start`), liefert die neue Buchung |
 | DELETE | `/api/v1/bookings/:id` | Absagen, Kalender-Event wird mitgelöscht |

@@ -71,8 +71,8 @@ export function EventTypeForm({
           </select>
         </div>
         <div>
-          <label className="label" htmlFor="maxGuests">Weitere Gäste erlaubt</label>
-          <input className="input" type="number" id="maxGuests" name="maxGuests" min={0} max={20} defaultValue={et?.maxGuests ?? 0} />
+          <label className="label" htmlFor="maxGuests">Kollegen, die Buchende mit einladen dürfen</label>
+          <input className="input" type="number" id="maxGuests" name="maxGuests" min={0} max={20} defaultValue={et?.maxGuests ?? 3} />
         </div>
         <div>
           <label className="label" htmlFor="locationType">Ort</label>
