@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { BookingWidget } from "@/components/BookingWidget";
 import { loadEventType } from "@/lib/slots";
+import { negotiationAvailable } from "@/lib/negotiation/agent";
+import { parseRules } from "@/lib/negotiation/rules";
 
 const LOCATION_LABEL = {
   GOOGLE_MEET: "Google Meet",
@@ -31,6 +33,7 @@ export default async function EventPage({ params }: { params: Promise<{ org: str
           durationMin={et.durationMin}
           maxGuests={et.maxGuests}
           brandColor={et.organization.brandColor}
+          negotiationEnabled={negotiationAvailable() && parseRules(et.negotiation).enabled}
         />
       </div>
     </main>

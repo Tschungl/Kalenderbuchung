@@ -4,6 +4,7 @@ import { pickRoundRobinHost } from "@/lib/availability";
 import { cancelGoogleEvent, createGoogleEvent } from "@/lib/google";
 import { formatDateTime, sendMail } from "@/lib/mail";
 import { getSlotsForEventType, type LoadedEventType } from "@/lib/slots";
+import type { NegotiationRules } from "@/lib/negotiation/rules";
 
 export class BookingError extends Error {
   constructor(message: string, public status = 400) {
@@ -20,14 +21,18 @@ export type BookingRequest = {
   notes?: string;
 };
 
-export async function createBooking(et: LoadedEventType, req: BookingRequest) {
+export async function createBooking(
+  et: LoadedEventType,
+  req: BookingRequest,
+  opts: { rules?: NegotiationRules } = {},
+) {
   if (req.guests.length > et.maxGuests) {
     throw new BookingError(`Maximal ${et.maxGuests} weitere Gäste erlaubt.`);
   }
   const end = new Date(req.start.getTime() + et.durationMin * 60_000);
 
   // Slot serverseitig erneut prüfen (der Kalender kann sich seit dem Laden der Seite geändert haben)
-  const slots = await getSlotsForEventType(et, req.start, end);
+  const slots = await getSlotsForEventType(et, req.start, end, opts);
   const slot = slots.find((s) => s.start.getTime() === req.start.getTime());
   if (!slot) throw new BookingError("Dieser Termin ist leider nicht mehr frei.", 409);
 

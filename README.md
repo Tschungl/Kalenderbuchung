@@ -24,6 +24,18 @@ Mandantenfähig: jede Firma ist eine eigene Organisation mit eigenen Mitgliedern
 - Kollektive Termine mit optionalen Gastgebern, Round Robin mit Gewichtung
 - Zentrale Buchungsübersicht mit Filter nach Gastgeber
 
+## Phase 3 (KI-Terminverhandlung)
+
+Passt keine angebotene Zeit, schreibt der Kunde auf der Buchungsseite frei, wann er kann. Ein Assistent (Claude API)
+sucht Alternativen und bucht oder fragt beim Gastgeber nach.
+
+- Pro Meeting-Typ einstellbar: erweiterte Tageszeiten, Wochenende, kürzerer Vorlauf, direkt buchen oder Freigabe, max. Nachrichten, Hinweise
+- Der Assistent handelt nur über vier Werkzeuge (Zeiten prüfen, vorschlagen, buchen, Freigabe anfragen); jedes prüft serverseitig gegen die Regeln
+- Vorgeschlagene Zeiten erscheinen als Buttons; erfundene oder ungeprüfte Zeiten werden verworfen
+- Ausnahmezeiten mit Freigabe: Gastgeber bekommt eine Mail mit Link, gibt mit einem Klick frei oder lehnt ab; der Kunde wird informiert und kann weiterverhandeln
+- Dashboard „Verhandlungen“ mit Status und vollem Verlauf
+- Benötigt `ANTHROPIC_API_KEY`; ohne Schlüssel ist die Funktion ausgeblendet
+
 ## Lokal starten
 
 ```bash
@@ -72,5 +84,4 @@ muss die App von Google verifiziert werden (Kalender-Bereiche gelten als „sens
 
 ## Nächste Phasen
 
-3. KI-Verhandlung: Agent (Claude API) schlägt bei „Keine Zeit passt“ Alternativen innerhalb fester Regeln vor
 4. Gestaltung und Ausbau: Branding-Editor, eigene Domains, Erinnerungen, Webhooks, Einbettung, Outlook

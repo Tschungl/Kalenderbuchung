@@ -158,6 +158,9 @@ model EventType {
   locationValue   String?
   maxGuests       Int             @default(0)
   active          Boolean         @default(true)
+  // Regeln für die KI-Verhandlung (siehe src/lib/negotiation/rules.ts), null = aus
+  negotiation     Json?
+  negotiations    Negotiation[]
   hosts           EventTypeHost[]
   bookings        Booking[]
   createdAt       DateTime        @default(now())
@@ -215,4 +218,42 @@ model Attendee {
   email     String
   timeZone  String  @default("Europe/Berlin")
   isGuest   Boolean @default(false)
+}
+
+// ---------- KI-Verhandlung ----------
+
+enum NegotiationStatus {
+  OPEN               // Gespräch läuft
+  AWAITING_APPROVAL  // Gastgeber muss eine Ausnahmezeit freigeben
+  BOOKED
+  DECLINED           // Gastgeber hat abgelehnt; Gespräch kann weitergehen
+  CLOSED
+}
+
+model Negotiation {
+  id             String            @id @default(cuid())
+  // Geheimer Link für den Kunden, um das Gespräch fortzusetzen
+  token          String            @unique @default(cuid())
+  organizationId String
+  eventTypeId    String
+  eventType      EventType         @relation(fields: [eventTypeId], references: [id], onDelete: Cascade)
+  customerName   String
+  customerEmail  String
+  timeZone       String
+  status         NegotiationStatus @default(OPEN)
+  // Vollständiger Verlauf für die Claude API (inkl. Werkzeugaufrufe)
+  apiMessages    Json              @default("[]")
+  // Lesbarer Verlauf für Kunde und Dashboard
+  transcript     Json              @default("[]")
+  // Zuletzt vom Agenten geprüfte Zeiten (nur diese darf er vorschlagen/buchen)
+  knownSlots     Json              @default("[]")
+  pendingStart   DateTime?
+  pendingReason  String?
+  approvalToken  String?           @unique
+  bookingId      String?
+  turnCount      Int               @default(0)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([organizationId, createdAt])
 }
