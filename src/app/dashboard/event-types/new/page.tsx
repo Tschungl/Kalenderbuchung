@@ -9,7 +9,7 @@ export default async function NewEventTypePage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Neuer Meeting-Typ</h1>
-      <EventTypeForm action={createEventType} members={members} selectedHostIds={[user.id]} />
+      <EventTypeForm action={createEventType} members={members} selectedHosts={[{ userId: user.id, required: true, weight: 1 }]} />
     </div>
   );
 }

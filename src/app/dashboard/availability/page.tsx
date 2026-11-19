@@ -37,9 +37,9 @@ export default async function AvailabilityPage() {
                 <label className="flex w-36 items-center gap-2 text-sm">
                   <input type="checkbox" name={`on_${d}`} defaultChecked={!!range} /> {label}
                 </label>
-                <input className="input w-32" type="time" name={`start_${d}`} defaultValue={range?.start ?? "09:00"} />
+                <input className="input" style={{ width: 128 }} type="time" name={`start_${d}`} defaultValue={range?.start ?? "09:00"} />
                 <span className="text-slate-400">bis</span>
-                <input className="input w-32" type="time" name={`end_${d}`} defaultValue={range?.end ?? "17:00"} />
+                <input className="input" style={{ width: 128 }} type="time" name={`end_${d}`} defaultValue={range?.end ?? "17:00"} />
               </div>
             );
           })}

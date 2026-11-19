@@ -29,12 +29,12 @@ export function EventTypeForm({
   action,
   eventType,
   members,
-  selectedHostIds,
+  selectedHosts,
 }: {
   action: (formData: FormData) => Promise<void>;
   eventType?: EventType;
   members: Member[];
-  selectedHostIds: string[];
+  selectedHosts: { userId: string; required: boolean; weight: number }[];
 }) {
   const et = eventType;
   return (
@@ -85,13 +85,38 @@ export function EventTypeForm({
       </div>
       <fieldset>
         <legend className="label">Gastgeber</legend>
-        <div className="space-y-2">
-          {members.map((m) => (
-            <label key={m.id} className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="hostIds" value={m.id} defaultChecked={selectedHostIds.includes(m.id)} />
-              {m.name ?? m.email}
-            </label>
-          ))}
+        <p className="mb-2 text-xs text-slate-500">
+          Kollektiv: optionale Gastgeber werden eingeladen, wenn sie frei sind, blockieren aber keine Zeiten.
+          Round Robin: höhere Gewichtung bekommt anteilig mehr Termine.
+        </p>
+        <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+          {members.map((m) => {
+            const sel = selectedHosts.find((h) => h.userId === m.id);
+            return (
+              <div key={m.id} className="flex flex-wrap items-center gap-4 px-3 py-2 text-sm">
+                <label className="flex min-w-48 flex-1 items-center gap-2">
+                  <input type="checkbox" name="hostIds" value={m.id} defaultChecked={!!sel} />
+                  {m.name ?? m.email}
+                </label>
+                <label className="flex items-center gap-1 text-slate-600">
+                  <input type="checkbox" name={`optional_${m.id}`} defaultChecked={sel ? !sel.required : false} />
+                  optional
+                </label>
+                <label className="flex items-center gap-1 text-slate-600">
+                  Gewichtung
+                  <input
+                    className="input py-1"
+                    style={{ width: 72 }}
+                    type="number"
+                    min={1}
+                    max={10}
+                    name={`weight_${m.id}`}
+                    defaultValue={sel?.weight ?? 1}
+                  />
+                </label>
+              </div>
+            );
+          })}
         </div>
       </fieldset>
       <label className="flex items-center gap-2 text-sm">

@@ -23,6 +23,7 @@ model Organization {
   memberships  Membership[]
   eventTypes   EventType[]
   bookings     Booking[]
+  invitations  Invitation[]
 }
 
 enum Role {
@@ -41,6 +42,21 @@ model Membership {
   createdAt      DateTime     @default(now())
 
   @@unique([userId, organizationId])
+}
+
+model Invitation {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  role           Role         @default(MEMBER)
+  token          String       @unique @default(cuid())
+  invitedById    String?
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([email])
 }
 
 // ---------- Auth.js (Google-Login, liefert auch die Kalender-Tokens) ----------
