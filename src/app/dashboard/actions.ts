@@ -9,6 +9,7 @@ import { slugify } from "@/lib/org";
 import { canManage, requireManager, requireMember } from "@/lib/session";
 import type { WeeklyHours } from "@/lib/availability";
 import { NegotiationRulesSchema } from "@/lib/negotiation/rules";
+import { IntakeConfigSchema, IntakeQuestionSchema } from "@/lib/negotiation/intake";
 
 const int = (min: number, max: number) => z.coerce.number().int().min(min).max(max);
 
@@ -52,7 +53,22 @@ function parseEventTypeForm(formData: FormData) {
     maxTurns: Number(formData.get("neg_maxTurns") ?? 12),
     instructions: String(formData.get("neg_instructions") ?? "").slice(0, 2000),
   });
-  return { data: { ...data, negotiation, slug: slugify(data.slug || data.title) }, hostIds, hostSettings };
+  let questions: unknown = [];
+  try {
+    questions = JSON.parse(String(formData.get("intake_questions") ?? "[]"));
+  } catch {
+    questions = [];
+  }
+  const intake = IntakeConfigSchema.parse({
+    enabled: formData.get("intake_enabled") === "on",
+    intro: String(formData.get("intake_intro") ?? "").slice(0, 500),
+    questions: (Array.isArray(questions) ? questions : [])
+      .map((q) => IntakeQuestionSchema.safeParse(q))
+      .filter((r) => r.success)
+      .map((r) => r.data)
+      .slice(0, 10),
+  });
+  return { data: { ...data, negotiation, intake, slug: slugify(data.slug || data.title) }, hostIds, hostSettings };
 }
 
 async function validHostIds(orgId: string, hostIds: string[], fallback: string) {

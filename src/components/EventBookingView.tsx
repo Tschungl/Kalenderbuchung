@@ -4,9 +4,11 @@ import { BrandHeader } from "@/components/BrandedPage";
 import type { LoadedEventType } from "@/lib/slots";
 import { negotiationAvailable } from "@/lib/negotiation/agent";
 import { parseRules } from "@/lib/negotiation/rules";
+import { intakeActive, parseIntake } from "@/lib/negotiation/intake";
 
 /** Inhalt einer Meeting-Typ-Seite; genutzt von der Buchungsseite und der Einbettung. */
 export function EventBookingView({ et, embed, homeHref }: { et: NonNullable<LoadedEventType>; embed?: boolean; homeHref?: string }) {
+  const intake = parseIntake(et.intake);
   const org = et.organization;
   const hostNames = et.hosts.map((h) => h.user.name ?? "").filter(Boolean);
   return (
@@ -30,6 +32,7 @@ export function EventBookingView({ et, embed, homeHref }: { et: NonNullable<Load
           confirmationText={org.confirmationText}
           embed={embed}
           negotiationEnabled={negotiationAvailable() && parseRules(et.negotiation).enabled}
+          intake={negotiationAvailable() && intakeActive(intake) ? { intro: intake.intro } : undefined}
         />
       </div>
     </>

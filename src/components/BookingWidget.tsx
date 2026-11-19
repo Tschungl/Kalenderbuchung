@@ -13,6 +13,8 @@ type Props = {
   negotiationEnabled?: boolean;
   confirmationText?: string | null;
   embed?: boolean;
+  /** KI-Vorabfragen: Buchung läuft über den Assistenten */
+  intake?: { intro: string };
   /** Verwaltungs-Token einer bestehenden Buchung: dann wird verschoben statt neu gebucht */
   rescheduleToken?: string;
 };
@@ -27,7 +29,7 @@ function startOfWeek(d: Date) {
   return x;
 }
 
-export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, negotiationEnabled, confirmationText, embed, rescheduleToken }: Props) {
+export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, negotiationEnabled, confirmationText, embed, rescheduleToken, intake }: Props) {
   const timeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [slots, setSlots] = useState<Slot[] | null>(null);
@@ -112,6 +114,22 @@ export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, 
           {submitting ? "Wird verschoben…" : "Termin verschieben"}
         </button>
       </div>
+    );
+  }
+
+  if (selected && intake) {
+    return (
+      <NegotiationChat
+        key={selected.start}
+        mode="intake"
+        org={org}
+        event={event}
+        brandColor={brandColor}
+        start={selected.start}
+        startLabel={`${longFmt.format(new Date(selected.start))} (${durationMin} Min.)`}
+        intro={intake.intro}
+        onBack={() => setSelected(null)}
+      />
     );
   }
 

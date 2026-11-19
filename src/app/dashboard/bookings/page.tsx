@@ -72,6 +72,18 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
                   {formatDateTime(b.startTime, user.timeZone)} · Gastgeber: {b.host.name ?? b.host.email}
                   {guests > 0 && ` · +${guests} Gäste`}
                 </p>
+                {Array.isArray(b.intakeAnswers) && b.intakeAnswers.length > 0 && (
+                  <details className="mt-1 text-sm text-slate-600">
+                    <summary className="cursor-pointer text-slate-500">Vorabfragen</summary>
+                    <ul className="mt-1 list-disc pl-5">
+                      {(b.intakeAnswers as { question: string; answer: string }[]).map((a, i) => (
+                        <li key={i}>
+                          {a.question}: {a.answer}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
               </div>
               {b.status === "CANCELLED" ? (
                 <span className="text-sm text-red-600">abgesagt</span>
