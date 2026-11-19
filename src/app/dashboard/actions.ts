@@ -23,7 +23,7 @@ const EventTypeForm = z.object({
   maxDaysAhead: int(1, 365),
   slotStepMin: int(5, 120),
   mode: z.enum(["SINGLE", "COLLECTIVE", "ROUND_ROBIN"]),
-  locationType: z.enum(["GOOGLE_MEET", "PHONE", "IN_PERSON", "CUSTOM_LINK"]),
+  locationType: z.enum(["GOOGLE_MEET", "MS_TEAMS", "ZOOM", "PHONE", "IN_PERSON", "CUSTOM_LINK"]),
   locationValue: z.string().max(500).optional(),
   maxGuests: int(0, 20),
   active: z.coerce.boolean().default(false),

@@ -14,6 +14,7 @@ Mandantenfähig: Jede Firma ist eine eigene Organisation mit eigenen Mitgliedern
 
 **Meeting-Typen und Teams**
 - Pro Meeting-Typ einstellbar: Dauer, Puffer, Vorlauf, Zeitraster, Ort und Gäste
+- Videokonferenz pro Meeting-Typ: Google Meet, Microsoft Teams oder Zoom, Link wird automatisch erzeugt
 - Gastgeber-Modi: einzeln, kollektiv (alle Pflicht-Gastgeber müssen frei sein, optionale nicht), Round Robin mit Gewichtung
 - Mitglieder per E-Mail einladen, Rollen Inhaber / Admin / Mitglied, mehrere Organisationen pro Person
 - Verfügbarkeit pro Wochentag und Zeitzone, zentrale Buchungsübersicht, Statistik
@@ -82,6 +83,17 @@ Solange die App im Google-Testmodus ist, können sich nur eingetragene Testnutze
 5. In `.env` eintragen: `AUTH_MICROSOFT_ENTRA_ID_ID` (Anwendungs-ID), `AUTH_MICROSOFT_ENTRA_ID_SECRET` (Wert des Schlüssels).
 
 Danach erscheint auf der Login-Seite zusätzlich „Mit Microsoft 365 / Outlook anmelden“. Wer sich so anmeldet, bekommt Belegt-Zeiten aus Outlook, und Buchungen landen in seinem Outlook-Kalender. Bei Firmenkonten kommt automatisch ein Teams-Link dazu, private Microsoft-Konten erhalten einen Termin ohne Teams. In einem Team können Google- und Outlook-Nutzer gemischt sein.
+
+## Zoom einrichten (optional)
+
+1. Im [Zoom App Marketplace](https://marketplace.zoom.us/) unter „Develop → Build App“ eine **General App** anlegen (user-managed).
+2. OAuth-Weiterleitung und Allow List: `https://<deine-domain>/api/integrations/zoom/callback`.
+3. Bereiche (Scopes): `meeting:write:meeting`, `meeting:delete:meeting`, `user:read:user`.
+4. Client-ID und Secret in `.env` als `ZOOM_CLIENT_ID` und `ZOOM_CLIENT_SECRET` eintragen.
+
+Danach verbindet jeder Gastgeber sein Zoom-Konto unter Dashboard → Integrationen → Videokonferenz. Bei Meeting-Typen mit Ort „Zoom“ legt die App pro Buchung ein Zoom-Meeting an, trägt den Link in Kalender und Mails ein und löscht es bei Absage wieder. Ohne Verbindung wird der feste Zoom-Link aus der Ortsangabe des Meeting-Typs verwendet.
+
+**Teams:** Bei Ort „Microsoft Teams“ erzeugt Outlook für Gastgeber mit Microsoft-365-Anmeldung automatisch ein Teams-Meeting. Für Gastgeber mit Google Kalender wird der feste Teams-Link aus der Ortsangabe verwendet.
 
 ## Eigene Domains
 

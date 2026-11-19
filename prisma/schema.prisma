@@ -94,6 +94,7 @@ model User {
   schedule      Schedule?
   hostOf        EventTypeHost[]
   bookingsHosted Booking[]      @relation("BookingHost")
+  zoom          ZoomConnection?
   createdAt     DateTime        @default(now())
 }
 
@@ -152,7 +153,9 @@ enum SchedulingMode {
 }
 
 enum LocationType {
-  GOOGLE_MEET
+  GOOGLE_MEET   // Google Meet (bei Outlook-Gastgebern: Teams)
+  MS_TEAMS      // Microsoft Teams
+  ZOOM          // Zoom
   PHONE
   IN_PERSON
   CUSTOM_LINK
@@ -222,6 +225,8 @@ model Booking {
   // "google" | "microsoft"
   calendarProvider String     @default("google")
   meetingUrl     String?
+  // Zoom-Meeting-ID (zum Löschen bei Absage)
+  zoomMeetingId  String?
   // Gesetzt, wenn diese Buchung eine verschobene ersetzt
   rescheduledFromId String?
   // Geheimer Token für Absage/Verschiebung per Link
@@ -334,4 +339,18 @@ model ApiKey {
   createdById    String?
   lastUsedAt     DateTime?
   createdAt      DateTime     @default(now())
+}
+
+// Zoom-Konto eines Gastgebers (OAuth), damit Meetings automatisch angelegt werden
+model ZoomConnection {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  zoomUserId   String
+  email        String?
+  accessToken  String   @db.Text
+  refreshToken String   @db.Text
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
