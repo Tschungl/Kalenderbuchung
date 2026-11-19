@@ -39,6 +39,8 @@ npm run dev                   # http://localhost:3000
 npm test                      # Tests (mit DATABASE_URL auch die Datenbank-Tests)
 ```
 
+Zum Ausprobieren ohne Google-Zugang: `DEMO_CALENDAR=1` setzen. Dann gibt es simulierte belegte Zeiten, und Buchungen bekommen einen Beispiel-Videolink. Nicht im echten Betrieb verwenden.
+
 ## Betrieb auf einem Server
 
 Voraussetzungen: ein Server mit Docker, eine Domain (z.B. `termine.example.com`), deren DNS auf den Server zeigt.
