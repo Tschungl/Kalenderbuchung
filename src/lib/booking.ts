@@ -2,6 +2,8 @@ import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { pickRoundRobinHost } from "@/lib/availability";
 import { cancelCalendarEvent, createCalendarEvent } from "@/lib/calendar";
+import { planConference, type ConferencePlan } from "@/lib/conference";
+import { deleteZoomMeeting } from "@/lib/zoom";
 import { formatDateTime, sendMail } from "@/lib/mail";
 import { getSlotsForEventType, loadEventTypeById, type LoadedEventType } from "@/lib/slots";
 import type { NegotiationRules } from "@/lib/negotiation/rules";
@@ -88,34 +90,49 @@ export async function createBooking(
     });
   });
 
-  // Kalender-Event anlegen (Google oder Outlook); schlägt das fehl, Buchung zurückrollen
+  // Videokonferenz vorbereiten (Zoom), dann Kalender-Event anlegen (Google oder Outlook).
+  // Schlägt etwas fehl, wird die Buchung zurückgerollt.
+  let conference: ConferencePlan | null = null;
   try {
+    conference = await planConference(et, organizerId, {
+      topic: `${et.title}: ${req.name}`,
+      start: req.start,
+      durationMin: et.durationMin,
+      timeZone: organizer.timeZone,
+      agenda: req.notes,
+      seed: booking.id,
+    });
     const { eventId, meetUrl, provider } = await createCalendarEvent({
       organizerUserId: organizerId,
       calendarId: organizer.targetCalendarId,
       summary: `${et.title}: ${req.name}`,
-      description: [req.notes, `Verwalten: ${appUrl()}/booking/${booking.manageToken}`].filter(Boolean).join("\n\n"),
+      description: [conference.descriptionLine, req.notes, `Verwalten: ${appUrl()}/booking/${booking.manageToken}`]
+        .filter(Boolean)
+        .join("\n\n"),
       start: req.start,
       end,
       timeZone: organizer.timeZone,
       attendees: [
         { email: req.email, displayName: req.name },
-        ...req.guests.map((email) => ({ email })),
+        ...guests.map((g) => ({ email: g.email, displayName: g.name })),
         ...coHosts.filter((u) => u.email).map((u) => ({ email: u.email!, displayName: u.name ?? undefined })),
       ],
-      withMeet: et.locationType === "GOOGLE_MEET",
-      location: et.locationType === "GOOGLE_MEET" ? undefined : et.locationValue ?? undefined,
+      withMeet: conference.withMeet,
+      location: conference.location,
       requestId: randomUUID(),
     });
+    const meetingUrl = conference.meetingUrl ?? meetUrl;
     await db.booking.update({
       where: { id: booking.id },
-      data: { googleEventId: eventId, meetingUrl: meetUrl, calendarProvider: provider },
+      data: { googleEventId: eventId, meetingUrl, calendarProvider: provider, zoomMeetingId: conference.zoomMeetingId },
     });
     booking.googleEventId = eventId;
-    booking.meetingUrl = meetUrl;
+    booking.meetingUrl = meetingUrl;
+    booking.zoomMeetingId = conference.zoomMeetingId ?? null;
   } catch (err) {
+    if (conference?.zoomMeetingId) await removeZoomMeeting(organizerId, conference.zoomMeetingId);
     await db.booking.delete({ where: { id: booking.id } });
-    console.error("[booking] Kalender-Event konnte nicht angelegt werden", err);
+    console.error("[booking] Termin konnte nicht angelegt werden", err);
     throw new BookingError("Der Termin konnte nicht im Kalender eingetragen werden. Bitte später erneut versuchen.", 502);
   }
 
@@ -157,6 +174,7 @@ export async function cancelBooking(manageToken: string) {
       console.error("[booking] Kalender-Event konnte nicht gelöscht werden", err),
     );
   }
+  if (booking.zoomMeetingId) await removeZoomMeeting(booking.hostId, booking.zoomMeetingId);
   const cancelled = await db.booking.update({ where: { id: booking.id }, data: { status: "CANCELLED" } });
   await emitWebhook(booking.organizationId, "booking.cancelled", bookingPayload({ ...cancelled, attendees: booking.attendees }));
   return cancelled;
@@ -195,6 +213,11 @@ export async function rescheduleBooking(manageToken: string, newStart: Date) {
     to: { id: created.id, start: created.startTime.toISOString() },
   });
   return created;
+}
+
+async function removeZoomMeeting(userId: string, meetingId: string) {
+  if (meetingId.startsWith("demo-")) return;
+  await deleteZoomMeeting(userId, meetingId).catch((err) => console.error("[booking] Zoom-Meeting konnte nicht gelöscht werden", err));
 }
 
 export function appUrl() {
