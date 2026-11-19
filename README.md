@@ -15,6 +15,15 @@ Mandantenfähig: jede Firma ist eine eigene Organisation mit eigenen Mitgliedern
 - Absage per Link oder im Dashboard (Google-Event wird mitgelöscht)
 - Kein Kalender erreichbar = keine Slots, damit es keine Doppelbuchungen gibt
 
+## Phase 2 (Teams)
+
+- Mitglieder per E-Mail einladen, Rollen Inhaber / Admin / Mitglied
+- Teamseite mit Kalender-Status je Mitglied, Rollen ändern, Mitglieder entfernen
+- Mehrere Organisationen pro User mit Umschalter
+- Einstellungen: Name, Adresse der Buchungsseite, Markenfarbe, Logo
+- Kollektive Termine mit optionalen Gastgebern, Round Robin mit Gewichtung
+- Zentrale Buchungsübersicht mit Filter nach Gastgeber
+
 ## Lokal starten
 
 ```bash
@@ -23,7 +32,7 @@ docker compose up -d db       # nur die Datenbank
 npm install --legacy-peer-deps
 npx prisma migrate dev
 npm run dev                   # http://localhost:3000
-npm test                      # Tests der Verfügbarkeits-Engine
+npm test                      # Tests (mit DATABASE_URL auch die DB-Integrationstests)
 ```
 
 ## Mit Docker betreiben
@@ -63,6 +72,5 @@ muss die App von Google verifiziert werden (Kalender-Bereiche gelten als „sens
 
 ## Nächste Phasen
 
-2. Teams: Mitglieder einladen, Rollen, zentrales Dashboard über alle Gastgeber
 3. KI-Verhandlung: Agent (Claude API) schlägt bei „Keine Zeit passt“ Alternativen innerhalb fester Regeln vor
 4. Gestaltung und Ausbau: Branding-Editor, eigene Domains, Erinnerungen, Webhooks, Einbettung, Outlook

@@ -17,7 +17,7 @@ export default async function EditEventTypePage({ params }: { params: Promise<{ 
         action={updateEventType.bind(null, eventType.id)}
         eventType={eventType}
         members={members}
-        selectedHostIds={eventType.hosts.map((h) => h.userId)}
+        selectedHosts={eventType.hosts}
       />
       <form action={deleteEventType.bind(null, eventType.id)}>
         <button className="text-sm text-red-600 hover:underline">Meeting-Typ löschen</button>

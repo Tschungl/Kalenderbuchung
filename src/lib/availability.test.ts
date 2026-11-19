@@ -123,3 +123,57 @@ describe("pickRoundRobinHost", () => {
     ).toBe("b");
   });
 });
+
+describe("Teams", () => {
+  const base = {
+    durationMin: 60,
+    stepMin: 60,
+    rangeStart: monday,
+    rangeEnd: nextDay,
+    now,
+  };
+
+  it("Kollektiv: optionaler Gastgeber blockiert nicht, wird aber eingeladen wenn frei", () => {
+    const slots = computeSlots({
+      ...base,
+      mode: "COLLECTIVE",
+      hosts: [
+        { id: "a", timeZone: "Europe/Berlin", weekly, busy: [] },
+        {
+          id: "b",
+          required: false,
+          timeZone: "Europe/Berlin",
+          weekly,
+          busy: [{ start: new Date("2026-12-07T08:00:00Z"), end: new Date("2026-12-07T09:00:00Z") }],
+        },
+      ],
+    });
+    expect(slots).toHaveLength(3);
+    expect(slots[0].hostIds).toEqual(["a"]);
+    expect(slots[1].hostIds).toEqual(["a", "b"]);
+  });
+
+  it("Gastgeber in verschiedenen Zeitzonen", () => {
+    const slots = computeSlots({
+      ...base,
+      mode: "COLLECTIVE",
+      hosts: [
+        { id: "berlin", timeZone: "Europe/Berlin", weekly, busy: [] }, // 08-11 UTC
+        { id: "london", timeZone: "Europe/London", weekly, busy: [] }, // 09-12 UTC
+      ],
+    });
+    expect(slots.map((s) => s.start.toISOString())).toEqual([
+      "2026-12-07T09:00:00.000Z",
+      "2026-12-07T10:00:00.000Z",
+    ]);
+  });
+
+  it("Round Robin berücksichtigt die Gewichtung", () => {
+    expect(
+      pickRoundRobinHost([
+        { id: "a", weight: 3, bookingCount: 4 }, // 1,33 pro Gewicht
+        { id: "b", weight: 1, bookingCount: 2 }, // 2 pro Gewicht
+      ]),
+    ).toBe("a");
+  });
+});

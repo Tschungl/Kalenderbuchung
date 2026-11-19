@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { cancelBooking } from "@/lib/booking";
 import { slugify } from "@/lib/org";
-import { canManage, requireMember } from "@/lib/session";
+import { canManage, requireManager, requireMember } from "@/lib/session";
 import type { WeeklyHours } from "@/lib/availability";
 
 const int = (min: number, max: number) => z.coerce.number().int().min(min).max(max);
@@ -32,13 +32,16 @@ function parseEventTypeForm(formData: FormData) {
   const raw = Object.fromEntries(formData);
   const data = EventTypeForm.parse({ ...raw, active: raw.active === "on" });
   const hostIds = formData.getAll("hostIds").map(String);
-  return { data: { ...data, slug: slugify(data.slug || data.title) }, hostIds };
-}
-
-async function requireManager() {
-  const ctx = await requireMember();
-  if (!canManage(ctx.membership.role)) throw new Error("Keine Berechtigung");
-  return ctx;
+  const hostSettings = Object.fromEntries(
+    hostIds.map((id) => [
+      id,
+      {
+        required: formData.get(`optional_${id}`) !== "on",
+        weight: Math.min(10, Math.max(1, Number(formData.get(`weight_${id}`)) || 1)),
+      },
+    ]),
+  );
+  return { data: { ...data, slug: slugify(data.slug || data.title) }, hostIds, hostSettings };
 }
 
 async function validHostIds(orgId: string, hostIds: string[], fallback: string) {
@@ -49,10 +52,17 @@ async function validHostIds(orgId: string, hostIds: string[], fallback: string) 
 
 export async function createEventType(formData: FormData) {
   const { org, user } = await requireManager();
-  const { data, hostIds } = parseEventTypeForm(formData);
+  const { data, hostIds, hostSettings } = parseEventTypeForm(formData);
   const hosts = await validHostIds(org.id, hostIds, user.id);
+  if (await db.eventType.findFirst({ where: { organizationId: org.id, slug: data.slug } })) {
+    throw new Error(`Das URL-Kürzel "${data.slug}" ist schon vergeben.`);
+  }
   await db.eventType.create({
-    data: { ...data, organizationId: org.id, hosts: { create: hosts.map((userId) => ({ userId })) } },
+    data: {
+      ...data,
+      organizationId: org.id,
+      hosts: { create: hosts.map((userId) => ({ userId, ...(hostSettings[userId] ?? {}) })) },
+    },
   });
   revalidatePath("/dashboard");
   redirect("/dashboard");
@@ -62,7 +72,7 @@ export async function updateEventType(id: string, formData: FormData) {
   const { org, user } = await requireManager();
   const existing = await db.eventType.findFirst({ where: { id, organizationId: org.id } });
   if (!existing) throw new Error("Nicht gefunden");
-  const { data, hostIds } = parseEventTypeForm(formData);
+  const { data, hostIds, hostSettings } = parseEventTypeForm(formData);
   const hosts = await validHostIds(org.id, hostIds, user.id);
   await db.$transaction([
     db.eventType.update({ where: { id }, data }),
@@ -70,8 +80,8 @@ export async function updateEventType(id: string, formData: FormData) {
     ...hosts.map((userId) =>
       db.eventTypeHost.upsert({
         where: { eventTypeId_userId: { eventTypeId: id, userId } },
-        create: { eventTypeId: id, userId },
-        update: {},
+        create: { eventTypeId: id, userId, ...(hostSettings[userId] ?? {}) },
+        update: { ...(hostSettings[userId] ?? {}) },
       }),
     ),
   ]);
@@ -111,9 +121,10 @@ export async function saveSchedule(formData: FormData) {
 }
 
 export async function cancelBookingFromDashboard(bookingId: string) {
-  const { org } = await requireMember();
+  const { org, user, membership } = await requireMember();
   const booking = await db.booking.findFirst({ where: { id: bookingId, organizationId: org.id } });
   if (!booking) throw new Error("Nicht gefunden");
+  if (booking.hostId !== user.id && !canManage(membership.role)) throw new Error("Keine Berechtigung");
   await cancelBooking(booking.manageToken);
   revalidatePath("/dashboard/bookings");
 }
