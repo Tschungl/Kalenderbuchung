@@ -19,6 +19,7 @@ export default async function NegotiationPage({ params }: { params: Promise<{ to
           mode="resume"
           token={neg.token}
           brandColor={neg.eventType.organization.brandColor}
+          anrede={neg.eventType.organization.salutation}
           initialTranscript={neg.transcript as unknown as TranscriptEntry[]}
           initialStatus={neg.status}
         />

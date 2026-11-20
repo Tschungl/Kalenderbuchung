@@ -16,6 +16,7 @@ const BrandingSchema = z.object({
   fontStyle: z.enum(Object.keys(FONT_STYLES) as [keyof typeof FONT_STYLES]),
   buttonStyle: z.enum(Object.keys(BUTTON_STYLES) as [keyof typeof BUTTON_STYLES]),
   pageTheme: z.enum(Object.keys(PAGE_THEMES) as [keyof typeof PAGE_THEMES]),
+  salutation: z.enum(["SIE", "DU"]),
 });
 
 export async function updateBranding(formData: FormData) {
@@ -32,6 +33,7 @@ export async function updateBranding(formData: FormData) {
       fontStyle: data.fontStyle,
       buttonStyle: data.buttonStyle,
       pageTheme: data.pageTheme,
+      salutation: data.salutation,
     },
   });
   revalidatePath("/dashboard", "layout");

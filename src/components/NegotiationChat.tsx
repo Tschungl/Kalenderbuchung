@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { t, type Anrede } from "@/lib/salutation";
 
 type Entry = {
   role: "customer" | "assistant" | "system";
@@ -11,12 +12,13 @@ type Entry = {
 type Status = "OPEN" | "AWAITING_APPROVAL" | "BOOKED" | "DECLINED" | "CLOSED";
 
 type Props =
-  | { mode: "new"; org: string; event: string; brandColor: string; onBack?: () => void }
+  | { mode: "new"; org: string; event: string; brandColor: string; anrede?: Anrede; onBack?: () => void }
   /** Pflicht-Vorabfragen vor der Buchung; start ist die vorab gewählte Zeit */
-  | { mode: "intake"; org: string; event: string; brandColor: string; start: string; startLabel: string; intro?: string; onBack?: () => void }
-  | { mode: "resume"; token: string; brandColor: string; initialTranscript: Entry[]; initialStatus: Status };
+  | { mode: "intake"; org: string; event: string; brandColor: string; start: string; startLabel: string; intro?: string; anrede?: Anrede; onBack?: () => void }
+  | { mode: "resume"; token: string; brandColor: string; anrede?: Anrede; initialTranscript: Entry[]; initialStatus: Status };
 
 export function NegotiationChat(props: Props) {
+  const tx = t(props.anrede);
   const timeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
   const [token, setToken] = useState<string | null>(props.mode === "resume" ? props.token : null);
   const [transcript, setTranscript] = useState<Entry[]>(props.mode === "resume" ? props.initialTranscript : []);
@@ -89,22 +91,22 @@ export function NegotiationChat(props: Props) {
           <h2 className="font-semibold">Noch ein paar Fragen vor der Buchung</h2>
           <p className="text-sm text-slate-600">
             Gewählt: <span className="font-medium">{props.startLabel}</span>.{" "}
-            {props.intro || "Unser Assistent klärt kurz ein paar Punkte und bucht dann den Termin für dich."}
+            {props.intro || tx.intakeIntroDefault}
           </p>
         </div>
       ) : (
         <div>
           <h2 className="font-semibold">Keine passende Zeit dabei?</h2>
           <p className="text-sm text-slate-600">
-            Schreib kurz, wann es dir passt. Unser Assistent sucht Alternativen und fragt bei Bedarf beim Gastgeber nach.
+            {tx.negotiationIntro}
           </p>
         </div>
       )}
 
       {!token && (
         <div className="grid gap-3 sm:grid-cols-2">
-          <input className="input" placeholder="Dein Name" value={contact.name} onChange={(e) => setContact({ ...contact, name: e.target.value })} />
-          <input className="input" type="email" placeholder="Deine E-Mail" value={contact.email} onChange={(e) => setContact({ ...contact, email: e.target.value })} />
+          <input className="input" placeholder={tx.yourName} value={contact.name} onChange={(e) => setContact({ ...contact, name: e.target.value })} />
+          <input className="input" type="email" placeholder={tx.yourEmail} value={contact.email} onChange={(e) => setContact({ ...contact, email: e.target.value })} />
         </div>
       )}
 
@@ -164,7 +166,7 @@ export function NegotiationChat(props: Props) {
 
       {status === "BOOKED" && <p className="text-sm font-medium text-green-700">✅ Termin gebucht. Die Einladung kommt per E-Mail.</p>}
       {status === "AWAITING_APPROVAL" && (
-        <p className="text-sm font-medium text-amber-700">⏳ Wir fragen beim Gastgeber nach. Du bekommst eine E-Mail.</p>
+        <p className="text-sm font-medium text-amber-700">⏳ {tx.waitingForHost}</p>
       )}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
@@ -181,7 +183,7 @@ export function NegotiationChat(props: Props) {
             value={input}
             maxLength={1000}
             disabled={busy || needsContact}
-            placeholder={needsContact ? "Bitte zuerst Name und E-Mail eingeben" : props.mode === "intake" ? "Deine Antwort" : "Wann passt es dir?"}
+            placeholder={needsContact ? "Bitte zuerst Name und E-Mail eingeben" : props.mode === "intake" ? tx.yourAnswer : tx.whenSuitsYou}
             onChange={(e) => setInput(e.target.value)}
           />
           <button className="btn" disabled={busy || needsContact || !input.trim()} style={{ backgroundColor: props.brandColor }}>

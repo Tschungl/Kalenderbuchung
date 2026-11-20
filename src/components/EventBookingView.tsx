@@ -32,6 +32,7 @@ export function EventBookingView({ et, embed, homeHref }: { et: NonNullable<Load
           confirmationText={org.confirmationText}
           embed={embed}
           negotiationEnabled={negotiationAvailable() && parseRules(et.negotiation).enabled}
+          anrede={org.salutation}
           intake={negotiationAvailable() && intakeActive(intake) ? { intro: intake.intro } : undefined}
         />
       </div>

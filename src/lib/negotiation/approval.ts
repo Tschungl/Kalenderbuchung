@@ -1,4 +1,5 @@
 import { intakeActive, intakeSummary, parseIntake, type IntakeAnswer, type Participant } from "./intake";
+import { t } from "@/lib/salutation";
 import { db } from "@/lib/db";
 import { appUrl, BookingError, createBooking } from "@/lib/booking";
 import { formatDateTime, sendMail } from "@/lib/mail";
@@ -74,10 +75,10 @@ export async function decideApproval(approvalToken: string, approve: boolean) {
     neg.customerEmail,
     `Termin am ${when} leider nicht möglich`,
     [
-      `Hallo ${neg.customerName},`,
+      t(et.organization.salutation).hello(neg.customerName),
       ``,
-      `die angefragte Zeit für "${et.title}" (${when}) ist leider nicht möglich.`,
-      `Hier kannst du direkt eine andere Zeit finden: ${link}`,
+      t(et.organization.salutation).declined(et.title, when),
+      t(et.organization.salutation).findOtherTime(link),
     ].join("\n"),
   ).catch((e) => console.error("[negotiation] Absage-Mail fehlgeschlagen", e));
   return { ok: true, message: "Abgelehnt. Der Kunde wurde informiert und kann eine andere Zeit wählen." };
