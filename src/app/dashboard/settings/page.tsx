@@ -30,6 +30,7 @@ export default async function SettingsPage() {
             fontStyle: org.fontStyle,
             buttonStyle: org.buttonStyle,
             pageTheme: org.pageTheme,
+            salutation: org.salutation,
           }}
           orgName={org.name}
           sampleEvents={events}

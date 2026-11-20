@@ -11,6 +11,7 @@ export type Branding = {
   fontStyle: string;
   buttonStyle: string;
   pageTheme: string;
+  salutation: string;
 };
 
 const FONTS: Record<string, string> = {

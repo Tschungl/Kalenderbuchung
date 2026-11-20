@@ -29,6 +29,8 @@ model Organization {
   buttonStyle  String       @default("rounded")
   // "light" | "tinted" | "dark"
   pageTheme    String       @default("light")
+  // Anrede der Kunden auf Buchungsseiten, im Chat und in Mails
+  salutation   Salutation   @default(SIE)
   // Minuten vor Terminbeginn, zu denen Erinnerungen verschickt werden
   reminderOffsetsMin Int[]  @default([1440, 60])
   // Eigene Domain, z.B. "termine.firma.de" (erst nach DNS-Prüfung aktiv)
@@ -150,6 +152,11 @@ enum SchedulingMode {
   SINGLE       // ein Gastgeber
   COLLECTIVE   // alle Gastgeber müssen frei sein
   ROUND_ROBIN  // einer aus dem Pool, reihum
+}
+
+enum Salutation {
+  SIE
+  DU
 }
 
 enum LocationType {

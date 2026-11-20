@@ -27,6 +27,7 @@ Mandantenfähig: Jede Firma ist eine eigene Organisation mit eigenen Mitgliedern
 
 **Gestaltung und Ausbau**
 - Gestaltung der Buchungsseite mit Live-Vorschau: Farbe, Logo, Texte, Schrift, Buttons, Hintergrund (hell, getönt, dunkel)
+- Anrede der Kunden pro Organisation: Sie (Standard) oder Du, gilt für Buchungsseite, KI-Chat und Mails
 - Eigene Domain pro Organisation (z.B. `termine.firma.de`) mit automatischem HTTPS
 - Einbettung auf Firmenwebseiten (Skript, Popup-Button oder iframe)
 - Webhooks und REST-API mit API-Schlüsseln

@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { t } from "@/lib/salutation";
 import { db } from "@/lib/db";
 import { pickRoundRobinHost } from "@/lib/availability";
 import { cancelCalendarEvent, createCalendarEvent } from "@/lib/calendar";
@@ -163,13 +164,14 @@ export async function createBooking(
   }
 
   const when = formatDateTime(req.start, req.timeZone);
+  const tx = t(et.organization.salutation);
   await sendMail(
     req.email,
     `${opts.rescheduledFromId ? "Verschoben" : "Bestätigt"}: ${et.title} am ${when}`,
     [
-      `Hallo ${req.name},`,
+      tx.hello(req.name),
       ``,
-      `dein Termin "${et.title}" mit ${organizer.name ?? et.organization.name} ist ${opts.rescheduledFromId ? "verschoben und neu " : ""}bestätigt.`,
+      tx.confirmed(et.title, organizer.name ?? et.organization.name, !!opts.rescheduledFromId),
       `Wann: ${when}`,
       booking.meetingUrl ? `Video: ${booking.meetingUrl}` : et.locationValue ? `Ort: ${et.locationValue}` : "",
       ``,
@@ -185,13 +187,13 @@ export async function createBooking(
       g.email,
       `${opts.rescheduledFromId ? "Verschoben" : "Einladung"}: ${et.title} am ${gWhen}`,
       [
-        `Hallo${g.name ? ` ${g.name}` : ""},`,
+        tx.hello(g.name),
         ``,
-        `${req.name} hat dich zum Termin "${et.title}" mit ${hostName} ${opts.rescheduledFromId ? "eingeladen. Der Termin wurde verschoben." : "eingeladen."}`,
+        tx.guestInvited(req.name, et.title, hostName, !!opts.rescheduledFromId),
         `Wann: ${gWhen}`,
         booking.meetingUrl ? `Video: ${booking.meetingUrl}` : et.locationValue ? `Ort: ${et.locationValue}` : "",
         ``,
-        `Die Einladung für deinen Kalender kommt in einer separaten Mail. Verschieben oder absagen kann ${req.name}.`,
+        tx.guestCalendarNote(req.name),
       ].join("\n"),
     ).catch((err) => console.error("[booking] Gast-Mail fehlgeschlagen", err));
   }

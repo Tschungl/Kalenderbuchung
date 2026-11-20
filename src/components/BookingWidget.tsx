@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { NegotiationChat } from "./NegotiationChat";
+import { t, type Anrede } from "@/lib/salutation";
 
 type Slot = { start: string; end: string };
 type Props = {
@@ -15,6 +16,8 @@ type Props = {
   embed?: boolean;
   /** KI-Vorabfragen: Buchung läuft über den Assistenten */
   intake?: { intro: string };
+  /** Anrede der Kunden (Organisationseinstellung) */
+  anrede?: Anrede;
   /** Verwaltungs-Token einer bestehenden Buchung: dann wird verschoben statt neu gebucht */
   rescheduleToken?: string;
 };
@@ -29,7 +32,8 @@ function startOfWeek(d: Date) {
   return x;
 }
 
-export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, negotiationEnabled, confirmationText, embed, rescheduleToken, intake }: Props) {
+export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, negotiationEnabled, confirmationText, embed, rescheduleToken, intake, anrede }: Props) {
+  const tx = t(anrede);
   const timeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [slots, setSlots] = useState<Slot[] | null>(null);
@@ -60,7 +64,7 @@ export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, 
     (slots ?? []).filter((s) => new Date(s.start).toDateString() === day.toDateString());
 
   if (negotiating) {
-    return <NegotiationChat mode="new" org={org} event={event} brandColor={brandColor} onBack={() => setNegotiating(false)} />;
+    return <NegotiationChat mode="new" org={org} event={event} brandColor={brandColor} anrede={anrede} onBack={() => setNegotiating(false)} />;
   }
 
   if (done) {
@@ -69,10 +73,9 @@ export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, 
         <h2 className="text-xl font-semibold">✅ Termin {rescheduleToken ? "verschoben" : "bestätigt"}</h2>
         <p>{longFmt.format(new Date(done.start))}</p>
         <p className="text-sm text-slate-600">
-          Eine Kalendereinladung ist unterwegs
           {guests.some((g) => g.email.trim())
-            ? `, auch an ${guests.filter((g) => g.email.trim()).map((g) => g.name.trim() || g.email.trim()).join(", ")}.`
-            : "."}
+            ? tx.invitedAlso(guests.filter((g) => g.email.trim()).map((g) => g.name.trim() || g.email.trim()).join(", "))
+            : "Eine Kalendereinladung ist unterwegs."}
         </p>
         {confirmationText && <p className="whitespace-pre-line text-sm">{confirmationText}</p>}
         {done.meetingUrl && <a href={done.meetingUrl} className="text-sm text-blue-600 underline">{done.meetingUrl}</a>}
@@ -128,6 +131,7 @@ export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, 
         start={selected.start}
         startLabel={`${longFmt.format(new Date(selected.start))} (${durationMin} Min.)`}
         intro={intake.intro}
+        anrede={anrede}
         onBack={() => setSelected(null)}
       />
     );
@@ -260,7 +264,8 @@ export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, 
           </button>
         </div>
       </div>
-      <p className="text-xs text-slate-500">Zeiten in deiner Zeitzone: {timeZone}</p>
+      {/* Zeitzone kommt aus dem Browser und weicht beim Server-Rendern ab */}
+      <p className="text-xs text-slate-500" suppressHydrationWarning>{tx.yourTimeZone}: {timeZone}</p>
       {error && <p className="text-sm text-red-600">{error}</p>}
       {!slots && !error && <p className="text-sm text-slate-500">Lade freie Zeiten…</p>}
       {slots && (
@@ -285,7 +290,7 @@ export function BookingWidget({ org, event, durationMin, maxGuests, brandColor, 
         <div className="rounded-lg border border-dashed border-slate-300 p-4 text-sm">
           <span className="text-slate-600">Keine passende Zeit dabei? </span>
           <button type="button" className="font-medium underline" style={{ color: brandColor }} onClick={() => setNegotiating(true)}>
-            Sag uns, wann es dir passt
+            {tx.tellUsWhen}
           </button>
         </div>
       )}

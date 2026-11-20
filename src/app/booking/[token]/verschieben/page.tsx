@@ -34,6 +34,7 @@ export default async function ReschedulePage({ params }: { params: Promise<{ tok
           brandColor={org.brandColor}
           confirmationText={org.confirmationText}
           rescheduleToken={token}
+          anrede={org.salutation}
         />
       </div>
     </BrandedPage>

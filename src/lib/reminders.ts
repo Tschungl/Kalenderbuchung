@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { t } from "@/lib/salutation";
 import { appUrl } from "@/lib/booking";
 import { formatDateTime, sendMail } from "@/lib/mail";
 
@@ -50,13 +51,15 @@ export async function sendDueReminders(now = new Date()) {
         ];
         for (const r of recipients) {
           const when = formatDateTime(b.startTime, r.tz);
+          // Gastgeber werden wie im Dashboard geduzt, Kunden in der Anrede der Organisation
+          const tx = t(r.guest ? b.organization.salutation : "DU");
           await sendMail(
             r.email,
             `Erinnerung: ${b.eventType.title} ${describeOffset(offset)}`,
             [
-              r.name ? `Hallo ${r.name},` : "Hallo,",
+              tx.hello(r.name || undefined),
               ``,
-              `kurze Erinnerung an den Termin "${b.eventType.title}" (${b.organization.name}).`,
+              tx.reminder(b.eventType.title, b.organization.name),
               `Wann: ${when}`,
               b.meetingUrl ? `Video: ${b.meetingUrl}` : b.eventType.locationValue ? `Ort: ${b.eventType.locationValue}` : "",
               ``,

@@ -76,10 +76,23 @@ describe.skipIf(!hasDb)("Kollegen mit einladen", async () => {
     expect(recipients).toEqual(["kundin@firma.de", "ben@firma.de", "cara@firma.de"]);
     const benMail = mail.sendMail.mock.calls[1];
     expect(benMail[1]).toContain("Einladung: Beratung");
-    expect(benMail[2]).toContain("Hallo Ben Kollege");
-    expect(benMail[2]).toContain("Kundin hat dich");
+    // Standard-Anrede der Organisation ist "Sie"
+    expect(benMail[2]).toContain("Guten Tag Ben Kollege");
+    expect(benMail[2]).toContain("Kundin hat Sie");
+    expect(mail.sendMail.mock.calls[0][2]).toContain('Ihr Termin "Beratung"');
     const attendees = await db.attendee.findMany({ where: { bookingId: booking.id, isGuest: true }, orderBy: { email: "asc" } });
     expect(attendees.map((a) => a.name)).toEqual(["Ben Kollege", "cara@firma.de"]);
+  });
+
+  it("duzt, wenn die Organisation Du eingestellt hat", async () => {
+    await db.organization.update({ where: { id: orgId }, data: { salutation: "DU" } });
+    const et = (await loadEventTypeById(etId))!;
+    mail.sendMail.mockClear();
+    await createBooking(et, { start: at(12), name: "Kim", email: "kim@firma.de", timeZone: "UTC", guests: ["lea@firma.de"] });
+    expect(mail.sendMail.mock.calls[0][2]).toContain('Hallo Kim,');
+    expect(mail.sendMail.mock.calls[0][2]).toContain('dein Termin "Beratung"');
+    expect(mail.sendMail.mock.calls[1][2]).toContain("Kim hat dich");
+    await db.organization.update({ where: { id: orgId }, data: { salutation: "SIE" } });
   });
 
   it("hält das Limit pro Meeting-Typ ein", async () => {

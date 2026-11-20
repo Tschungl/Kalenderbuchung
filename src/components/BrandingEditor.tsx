@@ -1,5 +1,6 @@
 "use client";
 
+import { SALUTATIONS } from "@/lib/salutation";
 import { useState } from "react";
 import { BUTTON_STYLES, FONT_STYLES, PAGE_THEMES, brandingStyle, type Branding } from "@/lib/branding";
 
@@ -66,6 +67,13 @@ export function BrandingEditor({ initial, orgName, sampleEvents, disabled, actio
             <Choice label="Schrift" name="fontStyle" options={FONT_STYLES} value={b.fontStyle} onChange={(v) => set("fontStyle", v)} />
             <Choice label="Buttons" name="buttonStyle" options={BUTTON_STYLES} value={b.buttonStyle} onChange={(v) => set("buttonStyle", v)} />
             <Choice label="Hintergrund" name="pageTheme" options={PAGE_THEMES} value={b.pageTheme} onChange={(v) => set("pageTheme", v)} />
+          </div>
+          <div>
+            <Choice label="Anrede der Kunden" name="salutation" options={SALUTATIONS} value={b.salutation} onChange={(v) => set("salutation", v)} />
+            <p className="mt-1 text-xs text-slate-500">
+              Gilt für die festen Texte auf der Buchungsseite, im KI-Chat und in den Mails an Kunden und Gäste. Deine eigenen Texte oben
+              passt du bitte selbst an.
+            </p>
           </div>
           {!disabled && <button className="btn">Gestaltung speichern</button>}
         </fieldset>
